@@ -2,6 +2,8 @@ const express = require('express');
 const http = require('http');
 const {Server} = require("socket.io");
 const cors = require('cors');
+const {exec} = require('child_process'); // to run terminal commands if needed
+const fs = require('fs'); // to handle file operations if needed
 
 
 const app = express();
@@ -35,13 +37,35 @@ io.on('connection',(socket) => {
     // to(data.room) means only send to people in that room
     socket.to(data.room).emit("receive_message", data);
   });
+  //user.wants to run code 
+  socket.on("run_code", (data) => {
+    // Here you can implement code execution logic
+    // For security reasons, be very careful with executing arbitrary code
+    const {code, room} = data;
+
+    //A.save code to a temporary file called test.py
+    fs.writeFileSync('test.py', code);
+
+    //B.run the file using python
+    exec('python test.py', (error, stdout, stderr) => {
+      //C.check for errors
+      if (error) {
+        //send error back to room
+        io.to(room).emit("receive_output",stderr);
+      }
+      else {
+        //send output back to room
+        io.to(room).emit("receive_output", stdout);
+      }
+    });
+  });
 
   socket.on('disconnect', () => {
     console.log(`User disconnected: ${socket.id}`);
   });
-});
 
+});
 server.listen(5000, () => {
   console.log("SERVER RUNNING");      
 }
-)
+);
