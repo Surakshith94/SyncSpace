@@ -10,8 +10,16 @@ function App() {
   const [messageReceived, setMessageReceived] = useState("");
   // 2. "messageReceived" is what the other person sent you
   
+  const [room, setRoom] = useState("");
+
+  const joinRoom = () => {
+    if(room !== ""){
+      socket.emit("join_room", room);
+    } // Join a specific room
+  }
+
   const sendMessage = () => {
-    socket.emit("send_message", { message }); // Emit the message to the server
+    socket.emit("send_message", { message ,room}); // Emit the message to the server
   }
   useEffect(() => {
     // This keeps the ear open for messages coming FROM the Backend
@@ -24,13 +32,24 @@ function App() {
     <div style={{ padding: "50px" }}>
       <h1>Simul-Project</h1>
       
+      {/* 1. The Reception Area */}
+      <div>
+        <input 
+          placeholder="Room Number..." 
+          onChange={(event) => { setRoom(event.target.value); }}
+        />
+        <button onClick={joinRoom}> Join Room </button>
+      </div>
+
+      <br/>
+
+      {/* 2. The Work Area */}
       <input 
-        placeholder="Type something..." 
-        onChange={(event) => {
-          setMessage(event.target.value);
-        }}
+        placeholder="Message..." 
+        onChange={(event) => { setMessage(event.target.value); }}
       />
       <button onClick={sendMessage}> Send Message </button>
+
 
       <h3>Message from other user:</h3>
       <p style={{color: "red", fontSize: "24px"}}>{messageReceived}</p>
