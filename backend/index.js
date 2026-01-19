@@ -23,10 +23,17 @@ app.get('/', (req,res) => {
 io.on('connection',(socket) => {
   console.log(`User connected: ${socket.id}`);
 
-  // 1. Listen for the "send_message" event from the Frontend
+  //1. user wants to join a room
+  socket.on("join_room", (data) => {
+    socket.join(data);
+    console.log(`User with ID: ${socket.id} joined room: ${data}`);
+  
+  });
+
+  // 2.user sends a message to a specific room
   socket.on("send_message", (data) => {
-    // 2. When we receive a message, we emit it to all connected clients
-    socket.broadcast.emit("receive_message", data);
+    // to(data.room) means only send to people in that room
+    socket.to(data.room).emit("receive_message", data);
   });
 
   socket.on('disconnect', () => {
