@@ -1,4 +1,4 @@
-import { useEffect , useState} from "react";
+import { useEffect , useState, useRef} from "react";
 import io from "socket.io-client";
 import Editor from "@monaco-editor/react";
 
@@ -10,6 +10,9 @@ function App() {
   const [output, setOutput] = useState(""); // to store output from code execution
   
   const [room, setRoom] = useState("");
+
+  // This variable will hold the reference to the HTML video box
+  const myVideo = useRef();
 
   const joinRoom = () => {
     if(room !== ""){
@@ -36,6 +39,15 @@ function App() {
     socket.on("receive_output", (data) => {
       setOutput(data); // Update output when received from backend
     });
+
+    //1. Ask for permission to access the camera and mic
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then((stream) => {
+  // 2.If user says yes, show their own video in the video box
+      if (myVideo.current) {
+        myVideo.current.srcObject = stream;
+      }
+    })
+    .catch((err) => console.error("Error accessing media devices.", err));
   }, [socket]);
 
   return (
@@ -49,6 +61,18 @@ function App() {
           onChange={(event) => { setRoom(event.target.value); }}
         />
         <button onClick={joinRoom}> Join Room </button>
+      </div>
+
+      {/* Video Box */}
+      <div style={{ display: "flex", gap: "20px", marginBottom: "20px" }}>
+        
+        {/* My Face */}
+        <div style={{ border: "2px solid green", padding: "5px" }}>
+          <h4>My Video</h4>
+          {/* "muted" is important so you don't hear your own echo! */}
+          <video playsInline muted ref={myVideo} autoPlay style={{ width: "300px" }} />
+        </div>
+
       </div>
 
       {/* Code Editor */}
