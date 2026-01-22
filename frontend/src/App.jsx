@@ -1,6 +1,7 @@
 import { useEffect , useState, useRef} from "react";
 import io from "socket.io-client";
 import Editor from "@monaco-editor/react";
+import Peer from "peerjs"; //import the video tool
 
 const socket = io("http://localhost:5000"); // Connect to the backend server
 
@@ -13,10 +14,17 @@ function App() {
 
   // This variable will hold the reference to the HTML video box
   const myVideo = useRef();
+  const userVideo = useRef(); // for the Friend's video face
+  const [peerInstance, setPeerInstance] = useState(null); // to hold PeerJS instance
+  const [myPeerId, setMyPeerId] = useState(""); // to store my own Peer ID
+
+  // keep track of our own stream so we don't have to ask for camera twice
+  const [currentStream, setCurrentStream] = useState(null);
 
   const joinRoom = () => {
-    if(room !== ""){
-      socket.emit("join_room", room);
+    if(room !== "" && myPeerId !== "") {
+      // send both room number and my Peer ID to the backend
+      socket.emit("join_room",{ room, userId: myPeerId });
     } // Join a specific room
   }
 
@@ -30,6 +38,53 @@ function App() {
     socket.emit("run_code", { code, room }); // Send code to backend for execution
   }
 
+  // 1. SETUP CAMERA (Run this immediately!)
+  useEffect(() => {
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then((stream) => {
+        // Show my face immediately
+        if (myVideo.current) {
+            myVideo.current.srcObject = stream;
+        }
+        // Save the stream to state so we can use it for calls later
+        setCurrentStream(stream);
+    }).catch((err) => {
+        console.error("Error accessing camera:", err);
+    });
+  }, []); // Empty array = run once on load
+
+  // 1. Setup PeerJS (With Cleanup to stop "Ghosts")
+  useEffect(() => {
+    const peer = new Peer();
+
+    peer.on("open", (id) => {
+      setMyPeerId(id);
+      console.log("My Peer ID is: " + id);
+    });
+
+    peer.on("call", (call) => {
+      navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then((stream) => {
+        
+        // Answer with the stream we already captured (currentStream)
+        if (currentStream){
+          call.answer(currentStream);
+
+          call.on("stream", (userVideoStream) => {
+            if (userVideo.current) {
+              userVideo.current.srcObject = userVideoStream;
+            }
+          });
+        }
+      });
+    });
+
+    setPeerInstance(peer);
+
+    // FIX 1: Cleanup function (Destroys the old phone if the app restarts)
+    return () => {
+        peer.destroy();
+    }
+  }, [currentStream]); //re-run if currentStream changes
+
   useEffect(() => {
     // This keeps the ear open for messages coming FROM the Backend
     socket.on("receive_message", (data) => {
@@ -40,15 +95,31 @@ function App() {
       setOutput(data); // Update output when received from backend
     });
 
-    //1. Ask for permission to access the camera and mic
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then((stream) => {
-  // 2.If user says yes, show their own video in the video box
-      if (myVideo.current) {
-        myVideo.current.srcObject = stream;
+
+    socket.on("user-connected", (userId) => {
+      console.log("New User Connected: " + userId);
+      // Get my video/audio stream
+      if(peerInstance && currentStream) {
+        // Call the new user with our existing stream
+        const call = peerInstance.call(userId, currentStream);
+
+        call.on("stream", (userVideoStream) => {
+          // Show their video in the userVideo box
+          if (userVideo.current) {
+            userVideo.current.srcObject = userVideoStream;
+          }
+        });
       }
-    })
-    .catch((err) => console.error("Error accessing media devices.", err));
-  }, [socket]);
+    });
+
+    return () => {
+      socket.off("receive_message");
+      socket.off("receive_output");
+      socket.off("user-connected");
+    }
+  }, [socket, peerInstance, currentStream]);
+
+  
 
   return (
     <div style={{ padding: "20px", fontFamily: "Arial" }}>
@@ -69,8 +140,16 @@ function App() {
         {/* My Face */}
         <div style={{ border: "2px solid green", padding: "5px" }}>
           <h4>My Video</h4>
-          {/* "muted" is important so you don't hear your own echo! */}
           <video playsInline muted ref={myVideo} autoPlay style={{ width: "300px" }} />
+        </div>
+
+        {/* Friend's Face */}
+        <div style={{ border: "2px solid red", padding: "5px" }}>
+          <h4>Partner Video</h4>
+          
+          {/* ADD "muted" HERE 👇 */}
+          <video playsInline ref={userVideo} autoPlay muted style={{ width: "300px" }} />
+
         </div>
 
       </div>

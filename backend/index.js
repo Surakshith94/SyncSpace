@@ -27,8 +27,12 @@ io.on('connection',(socket) => {
 
   //1. user wants to join a room
   socket.on("join_room", (data) => {
-    socket.join(data);
-    console.log(`User with ID: ${socket.id} joined room: ${data}`);
+    // data is now an object: { room: "99", userId: "abc-123" }
+    socket.join(data.room);
+    console.log(`User ${socket.id} joined room ${data.room} with Video ID: ${data.userId}`);
+
+    //Brodcast to other users in the room that a new user has joined
+    socket.to(data.room).emit("user-connected", data.userId);
   
   });
 
