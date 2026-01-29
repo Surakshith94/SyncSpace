@@ -1,4 +1,4 @@
-import { useEffect , useState, useRef} from "react";
+import { useEffect, useState, useRef } from "react";
 import io from "socket.io-client";
 import Editor from "@monaco-editor/react";
 import Peer from "peerjs"; //import the video tool
@@ -6,17 +6,19 @@ import Peer from "peerjs"; //import the video tool
 const socket = io("http://localhost:5000"); // Connect to the backend server
 
 function App() {
-  const [code, setCode] = useState("#Start typing your code here...");// 2. "code" stores the text in the editor
+  const [code, setCode] = useState("#Start typing your code here..."); // 2. "code" stores the text in the editor
 
   const [output, setOutput] = useState(""); // to store output from code execution
-  
+
   const [room, setRoom] = useState("");
 
   // This variable will hold the reference to the HTML video box
   const myVideo = useRef();
-  const userVideo = useRef(); // for the Friend's video face
   const [peerInstance, setPeerInstance] = useState(null); // to hold PeerJS instance
   const [myPeerId, setMyPeerId] = useState(""); // to store my own Peer ID
+
+  // we store array of video streams: [{id: "abc", stream:...},{id:"def",stream:...}..]
+  const [peers, setPeers] = useState([]);
 
   //to take control of editor
   const [writerId, setWriterId] = useState("");
@@ -24,12 +26,36 @@ function App() {
   // keep track of our own stream so we don't have to ask for camera twice
   const [currentStream, setCurrentStream] = useState(null);
 
+  // medio controll - camera
+  const toggleCamera = () => {
+    if (currentStream) {
+      const videoTrack = currentStream.getVideoTracks()[0];
+      videoTrack.enabled = !videoTrack.enabled; // Toggle on/off
+    }
+  };
+
+  const toggleMic = () => {
+    if (currentStream) {
+      const audioTrack = currentStream.getAudioTracks()[0];
+      audioTrack.enabled = !audioTrack.enabled; // Toggle Mute/Unmute
+    }
+  };
+
   const joinRoom = () => {
-    if(room !== "" && myPeerId !== "") {
+    if (room !== "" && myPeerId !== "") {
       // send both room number and my Peer ID to the backend
-      socket.emit("join_room",{ room, userId: myPeerId });
+      socket.emit("join_room", { room, userId: myPeerId });
     } // Join a specific room
-  }
+  };
+
+  // Helper function to add a new peer to our list
+  const addPeer = (id, stream) => {
+    setPeers((prevPeers) => {
+      //check if we already have this person to avoid duplicates
+      if (prevPeers.find((p) => p.id === id)) return prevPeers;
+      return [...prevPeers, { id, stream }];
+    });
+  };
 
   // 3. when you type in the editor, update "code"
   const handleEditorChange = (value) => {
@@ -39,24 +65,27 @@ function App() {
 
   const runCode = () => {
     socket.emit("run_code", { code, room }); // Send code to backend for execution
-  }
+  };
 
-  const requestControl = () =>{
+  const requestControl = () => {
     socket.emit("request_writer", { room });
   };
 
   // 1. SETUP CAMERA (Run this immediately!)
   useEffect(() => {
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then((stream) => {
+    navigator.mediaDevices
+      .getUserMedia({ video: true, audio: true })
+      .then((stream) => {
         // Show my face immediately
         if (myVideo.current) {
-            myVideo.current.srcObject = stream;
+          myVideo.current.srcObject = stream;
         }
         // Save the stream to state so we can use it for calls later
         setCurrentStream(stream);
-    }).catch((err) => {
+      })
+      .catch((err) => {
         console.error("Error accessing camera:", err);
-    });
+      });
   }, []); // Empty array = run once on load
 
   // 1. Setup PeerJS (With Cleanup to stop "Ghosts")
@@ -69,27 +98,26 @@ function App() {
     });
 
     peer.on("call", (call) => {
-      navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then((stream) => {
-        
-        // Answer with the stream we already captured (currentStream)
-        if (currentStream){
-          call.answer(currentStream);
+      navigator.mediaDevices
+        .getUserMedia({ video: true, audio: true })
+        .then((stream) => {
+          // Answer with the stream we already captured (currentStream)
+          if (currentStream) {
+            call.answer(currentStream);
 
-          call.on("stream", (userVideoStream) => {
-            if (userVideo.current) {
-              userVideo.current.srcObject = userVideoStream;
-            }
-          });
-        }
-      });
+            call.on("stream", (userVideoStream) => {
+              addPeer(call.peer, userVideoStream);
+            });
+          }
+        });
     });
 
     setPeerInstance(peer);
 
     // FIX 1: Cleanup function (Destroys the old phone if the app restarts)
     return () => {
-        peer.destroy();
-    }
+      peer.destroy();
+    };
   }, [currentStream]); //re-run if currentStream changes
 
   useEffect(() => {
@@ -99,28 +127,25 @@ function App() {
     });
 
     // Listener updatae who is allowed to type
-    socket.on("update_writer",(writerId) => {
+    socket.on("update_writer", (writerId) => {
       setWriterId(writerId);
-      console.log("New Writter is:",writerId);
+      console.log("New Writter is:", writerId);
     });
 
     socket.on("receive_output", (data) => {
       setOutput(data); // Update output when received from backend
     });
 
-
     socket.on("user-connected", (userId) => {
       console.log("New User Connected: " + userId);
       // Get my video/audio stream
-      if(peerInstance && currentStream) {
+      if (peerInstance && currentStream) {
         // Call the new user with our existing stream
         const call = peerInstance.call(userId, currentStream);
 
         call.on("stream", (userVideoStream) => {
           // Show their video in the userVideo box
-          if (userVideo.current) {
-            userVideo.current.srcObject = userVideoStream;
-          }
+          addPeer(userId, userVideoStream);
         });
       }
     });
@@ -130,10 +155,8 @@ function App() {
       socket.off("receive_output");
       socket.off("user-connected");
       socket.off("update_writer");
-    }
+    };
   }, [socket, peerInstance, currentStream]);
-
-  
 
   return (
     <div style={{ padding: "20px", fontFamily: "Arial" }}>
@@ -146,76 +169,66 @@ function App() {
           onChange={(event) => { setRoom(event.target.value); }}
         />
         <button onClick={joinRoom}> Join Room </button>
-      </div>
-
-      {/* Video Box */}
-      <div style={{ display: "flex", gap: "20px", marginBottom: "20px" }}>
         
-        {/* My Face */}
-        <div style={{ border: "2px solid green", padding: "5px" }}>
-          <h4>My Video</h4>
-          <video playsInline muted ref={myVideo} autoPlay style={{ width: "300px" }} />
-        </div>
-
-        {/* Friend's Face */}
-        <div style={{ border: "2px solid red", padding: "5px" }}>
-          <h4>Partner Video</h4>
-          
-          {/* ADD "muted" HERE 👇 */}
-          <video playsInline ref={userVideo} autoPlay muted style={{ width: "300px" }} />
-
-        </div>
-
+        {/* Added Buttons to use your Toggle Functions */}
+        <button onClick={toggleCamera} style={{marginLeft: "10px"}}>Toggle Cam</button>
+        <button onClick={toggleMic} style={{marginLeft: "10px"}}>Toggle Mic</button>
       </div>
 
-      {/* Code Editor */}
+      {/* Video Grid Section */}
+      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "20px" }}>
+        
+        {/* My Video */}
+        <div style={{ width: "200px", border: "2px solid green" }}>
+          <video ref={myVideo} autoPlay muted playsInline style={{ width: "100%" }} />
+        </div>
+
+        {/* Friend Videos (Loop) */}
+        {peers.map((peer) => (
+          // FIXED: This Component is now defined at the bottom!
+          <VideoComponent key={peer.id} stream={peer.stream} />
+        ))}
+      
+      </div>
+
+      {/* Editor & Output Section */}
       <div style={{ display: "flex", gap: "20px" }}>
 
-        {/*switch control*/}
-        <div style={{ marginBottom: "10px" }}>
-          {socket.id === writerId ? (
-            <span style={{ color: "#4CAF50", fontWeight: "bold" }}>
-                ✏️ You are writing...
-            </span>
-          ) : (
-            <button 
-              onClick={requestControl}
-              style={{ background: "#2196F3", color: "white", padding: "8px", border: "none", cursor: "pointer" }}
-            >
-                ✋ Take Control (Switch)
-            </button>
-          )}
-          
-          {/* Show who is writing if it's not you */}
-          {writerId && socket.id !== writerId && (
-              <span style={{ marginLeft: "10px", color: "gray" }}>
-                (Someone else is typing...)
-              </span>
-          )}
-        </div>
-      
-        {/* Left Side: The Editor */}
+        {/* Left Side: Editor + Switch Control */}
         <div style={{ width: "60%" }}>
-          <Editor
-            height="50vh"
-            defaultLanguage="python" // Changed to Python!
-            theme="vs-dark"
-            value={code}
-            onChange={handleEditorChange}
-            options={{
-              readOnly: socket.id !== writerId
-            }}
-          />
-          <br />
-          <button 
-             onClick={runCode} 
-             style={{ padding: "10px 20px", fontSize: "16px", cursor: "pointer", backgroundColor: "#4CAF50", color: "white", border: "none" }}
-          >
-            Run Code
-          </button>
+            
+            {/* Switch Control */}
+            <div style={{ marginBottom: "10px" }}>
+                {socket.id === writerId ? (
+                <span style={{ color: "#4CAF50", fontWeight: "bold" }}> ✏️ You are writing... </span>
+                ) : (
+                <button 
+                    onClick={requestControl}
+                    style={{ background: "#2196F3", color: "white", padding: "8px", border: "none", cursor: "pointer" }}
+                >
+                    ✋ Take Control
+                </button>
+                )}
+            </div>
+
+            <Editor
+                height="50vh"
+                defaultLanguage="python"
+                theme="vs-dark"
+                value={code}
+                onChange={handleEditorChange}
+                options={{ readOnly: socket.id !== writerId }}
+            />
+            <br />
+            <button 
+                onClick={runCode} 
+                style={{ padding: "10px 20px", fontSize: "16px", cursor: "pointer", backgroundColor: "#4CAF50", color: "white", border: "none" }}
+            >
+                Run Code
+            </button>
         </div>
 
-        {/* Right Side: The Output Brain */}
+        {/* Right Side: Output */}
         <div style={{ width: "40%", height: "50vh", background: "#1e1e1e", color: "white", padding: "10px", overflowY: "auto" }}>
           <h3>Output:</h3>
           <pre>{output}</pre>
@@ -225,5 +238,21 @@ function App() {
     </div>
   );
 }
+
+// FIXED: Added the missing helper component here
+const VideoComponent = ({ stream }) => {
+  const videoRef = useRef();
+
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.srcObject = stream;
+  }, [stream]);
+
+  return (
+    <div style={{ border: "2px solid red", padding: "5px", width: "200px" }}>
+      <h4>Partner</h4>
+      <video ref={videoRef} autoPlay playsInline style={{ width: "100%" }} />
+    </div>
+  );
+};
 
 export default App;
