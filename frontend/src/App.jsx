@@ -41,6 +41,11 @@ function App() {
     }
   };
 
+  const saveCode = () => {
+    socket.emit("save_code", { room, code });
+    alert("Code Committed/Saved to Database!");
+  };
+
   const joinRoom = () => {
     if (room !== "" && myPeerId !== "") {
       // send both room number and my Peer ID to the backend
@@ -126,6 +131,10 @@ function App() {
       setCode(data.message); //4. update "messageReceived" when a message is received
     });
 
+    socket.on("code_saved", (data) => {
+      console.log("A version was saved at", data.timestamp);
+    });
+
     // Listener updatae who is allowed to type
     socket.on("update_writer", (writerId) => {
       setWriterId(writerId);
@@ -155,32 +164,51 @@ function App() {
       socket.off("receive_output");
       socket.off("user-connected");
       socket.off("update_writer");
+      socket.off("code_saved");
     };
   }, [socket, peerInstance, currentStream]);
 
   return (
     <div style={{ padding: "20px", fontFamily: "Arial" }}>
       <h1>Simul-Code</h1>
-      
+
       {/* Room Controls */}
       <div style={{ marginBottom: "20px" }}>
-        <input 
-          placeholder="Room Number..." 
-          onChange={(event) => { setRoom(event.target.value); }}
+        <input
+          placeholder="Room Number..."
+          onChange={(event) => {
+            setRoom(event.target.value);
+          }}
         />
         <button onClick={joinRoom}> Join Room </button>
-        
+
         {/* Added Buttons to use your Toggle Functions */}
-        <button onClick={toggleCamera} style={{marginLeft: "10px"}}>Toggle Cam</button>
-        <button onClick={toggleMic} style={{marginLeft: "10px"}}>Toggle Mic</button>
+        <button onClick={toggleCamera} style={{ marginLeft: "10px" }}>
+          Toggle Cam
+        </button>
+        <button onClick={toggleMic} style={{ marginLeft: "10px" }}>
+          Toggle Mic
+        </button>
       </div>
 
       {/* Video Grid Section */}
-      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "20px" }}>
-        
+      <div
+        style={{
+          display: "flex",
+          gap: "10px",
+          flexWrap: "wrap",
+          marginBottom: "20px",
+        }}
+      >
         {/* My Video */}
         <div style={{ width: "200px", border: "2px solid green" }}>
-          <video ref={myVideo} autoPlay muted playsInline style={{ width: "100%" }} />
+          <video
+            ref={myVideo}
+            autoPlay
+            muted
+            playsInline
+            style={{ width: "100%" }}
+          />
         </div>
 
         {/* Friend Videos (Loop) */}
@@ -188,52 +216,87 @@ function App() {
           // FIXED: This Component is now defined at the bottom!
           <VideoComponent key={peer.id} stream={peer.stream} />
         ))}
-      
       </div>
 
       {/* Editor & Output Section */}
       <div style={{ display: "flex", gap: "20px" }}>
-
         {/* Left Side: Editor + Switch Control */}
         <div style={{ width: "60%" }}>
-            
-            {/* Switch Control */}
-            <div style={{ marginBottom: "10px" }}>
-                {socket.id === writerId ? (
-                <span style={{ color: "#4CAF50", fontWeight: "bold" }}> ✏️ You are writing... </span>
-                ) : (
-                <button 
-                    onClick={requestControl}
-                    style={{ background: "#2196F3", color: "white", padding: "8px", border: "none", cursor: "pointer" }}
-                >
-                    ✋ Take Control
-                </button>
-                )}
-            </div>
+          {/* Switch Control */}
+          <div style={{ marginBottom: "10px" }}>
+            {socket.id === writerId ? (
+              <span style={{ color: "#4CAF50", fontWeight: "bold" }}>
+                {" "}
+                ✏️ You are writing...{" "}
+              </span>
+            ) : (
+              <button
+                onClick={requestControl}
+                style={{
+                  background: "#2196F3",
+                  color: "white",
+                  padding: "8px",
+                  border: "none",
+                  cursor: "pointer",
+                }}
+              >
+                ✋ Take Control
+              </button>
+            )}
+          </div>
 
-            <Editor
-                height="50vh"
-                defaultLanguage="python"
-                theme="vs-dark"
-                value={code}
-                onChange={handleEditorChange}
-                options={{ readOnly: socket.id !== writerId }}
-            />
-            <br />
-            <button 
-                onClick={runCode} 
-                style={{ padding: "10px 20px", fontSize: "16px", cursor: "pointer", backgroundColor: "#4CAF50", color: "white", border: "none" }}
-            >
-                Run Code
-            </button>
+          <Editor
+            height="50vh"
+            defaultLanguage="python"
+            theme="vs-dark"
+            value={code}
+            onChange={handleEditorChange}
+            options={{ readOnly: socket.id !== writerId }}
+          />
+          <br />
+          <button
+            onClick={runCode}
+            style={{
+              padding: "10px 20px",
+              fontSize: "16px",
+              cursor: "pointer",
+              backgroundColor: "#4CAF50",
+              color: "white",
+              border: "none",
+            }}
+          >
+            Run Code
+          </button>
+          <button
+            onClick={saveCode}
+            style={{
+              marginTop: "10px",
+              marginLeft: "10px",
+              padding: "10px",
+              background: "#FF9800",
+              color: "white",
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            💾 Commit / Save
+          </button>
         </div>
 
         {/* Right Side: Output */}
-        <div style={{ width: "40%", height: "50vh", background: "#1e1e1e", color: "white", padding: "10px", overflowY: "auto" }}>
+        <div
+          style={{
+            width: "40%",
+            height: "50vh",
+            background: "#1e1e1e",
+            color: "white",
+            padding: "10px",
+            overflowY: "auto",
+          }}
+        >
           <h3>Output:</h3>
           <pre>{output}</pre>
         </div>
-
       </div>
     </div>
   );
