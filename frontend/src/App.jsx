@@ -18,6 +18,9 @@ function App() {
   const [peerInstance, setPeerInstance] = useState(null); // to hold PeerJS instance
   const [myPeerId, setMyPeerId] = useState(""); // to store my own Peer ID
 
+  //to take control of editor
+  const [writerId, setWriterId] = useState("");
+
   // keep track of our own stream so we don't have to ask for camera twice
   const [currentStream, setCurrentStream] = useState(null);
 
@@ -37,6 +40,10 @@ function App() {
   const runCode = () => {
     socket.emit("run_code", { code, room }); // Send code to backend for execution
   }
+
+  const requestControl = () =>{
+    socket.emit("request_writer", { room });
+  };
 
   // 1. SETUP CAMERA (Run this immediately!)
   useEffect(() => {
@@ -91,6 +98,12 @@ function App() {
       setCode(data.message); //4. update "messageReceived" when a message is received
     });
 
+    // Listener updatae who is allowed to type
+    socket.on("update_writer",(writerId) => {
+      setWriterId(writerId);
+      console.log("New Writter is:",writerId);
+    });
+
     socket.on("receive_output", (data) => {
       setOutput(data); // Update output when received from backend
     });
@@ -116,6 +129,7 @@ function App() {
       socket.off("receive_message");
       socket.off("receive_output");
       socket.off("user-connected");
+      socket.off("update_writer");
     }
   }, [socket, peerInstance, currentStream]);
 
@@ -156,7 +170,30 @@ function App() {
 
       {/* Code Editor */}
       <div style={{ display: "flex", gap: "20px" }}>
-        
+
+        {/*switch control*/}
+        <div style={{ marginBottom: "10px" }}>
+          {socket.id === writerId ? (
+            <span style={{ color: "#4CAF50", fontWeight: "bold" }}>
+                ✏️ You are writing...
+            </span>
+          ) : (
+            <button 
+              onClick={requestControl}
+              style={{ background: "#2196F3", color: "white", padding: "8px", border: "none", cursor: "pointer" }}
+            >
+                ✋ Take Control (Switch)
+            </button>
+          )}
+          
+          {/* Show who is writing if it's not you */}
+          {writerId && socket.id !== writerId && (
+              <span style={{ marginLeft: "10px", color: "gray" }}>
+                (Someone else is typing...)
+              </span>
+          )}
+        </div>
+      
         {/* Left Side: The Editor */}
         <div style={{ width: "60%" }}>
           <Editor
@@ -165,6 +202,9 @@ function App() {
             theme="vs-dark"
             value={code}
             onChange={handleEditorChange}
+            options={{
+              readOnly: socket.id !== writerId
+            }}
           />
           <br />
           <button 
