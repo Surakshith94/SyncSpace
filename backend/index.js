@@ -64,6 +64,13 @@ io.on('connection',(socket) => {
     });
   });
 
+  //4. handle "take control" (switch writer)
+  socket.on("request_writer",(data) => {
+    const {room } = data;
+    // Broadcast to the WHOLE room (including the sender): "the new writer is this user")
+    io.in(room).emit("update_writer", socket.id);
+  });
+
   socket.on('disconnect', () => {
     console.log(`User disconnected: ${socket.id}`);
   });
