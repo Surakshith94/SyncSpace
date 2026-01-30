@@ -90,6 +90,13 @@ io.on('connection',(socket) => {
     }
   });
 
+  // chat message listnere
+  socket.on("send_chat", (data) => {
+    const { room, message, sender } = data;
+    // broadcast toeveryone in the room (except the sender)
+    socket.to(room).emit("receive_chat", { message, sender });
+  });
+
 
   //user.wants to run code 
   socket.on("run_code", (data) => {

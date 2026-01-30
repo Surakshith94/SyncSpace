@@ -32,6 +32,11 @@ function App() {
   // keep track of our own stream so we don't have to ask for camera twice
   const [currentStream, setCurrentStream] = useState(null);
 
+  // chat state
+  const [message, setMessage] = useState([]); // store al the chat message
+  const [newMessage, setNewMessage] = useState(""); // stores the text you are typing
+  const [showChat, setShowChat] = useState(false); // toggle chat sidebar
+
   // medio controll - camera
   const toggleCamera = () => {
     if (currentStream) {
@@ -109,6 +114,25 @@ function App() {
     setShowHistory(false); // Close sidebar
   };
 
+  //sendchat
+  const sendMessage = () => {
+    if (newMessage.trim() === "") return;
+
+    const msgdata = { room, message: newMessage, sender: "Me"};
+
+    // add to my own list immediately
+    setMessage((prev) => [...prev, msgdata]);
+
+    //send to the server
+    socket.emit("send_chat", { room, message:newMessage, sender: "Partner"});
+
+    setNewMessage(""); // clear input
+  };
+
+  const handleEnterKey = (e) => {
+    if(e.key == "Enter") sendMessage();
+  };
+
   // 1. SETUP CAMERA (Run this immediately!)
   useEffect(() => {
     navigator.mediaDevices
@@ -178,6 +202,11 @@ function App() {
       setOutput(data); // Update output when received from backend
     });
 
+    socket.on("receive_chat", (data) => {
+        setMessage((prev) => [...prev, data]);
+        setShowChat(true); //auto-open chat if someone messages
+      });
+
     socket.on("user-connected", (userId) => {
       console.log("New User Connected: " + userId);
       // Get my video/audio stream
@@ -190,6 +219,7 @@ function App() {
           addPeer(userId, userVideoStream);
         });
       }
+
     });
 
     return () => {
@@ -198,6 +228,7 @@ function App() {
       socket.off("user-connected");
       socket.off("update_writer");
       socket.off("code_saved");
+      socket.off("receive_chat");
     };
   }, [socket, peerInstance, currentStream]);
 
@@ -222,6 +253,9 @@ function App() {
         <button onClick={toggleMic} style={{ marginLeft: "10px" }}>
           Toggle Mic
         </button>
+        <button onClick={() => setShowChat(!showChat)} style={{ marginLeft: "10px" }}> 
+  💬 Chat 
+</button>
       </div>
 
       {/* Video Grid Section */}
@@ -417,7 +451,64 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* CHAT SIDEBAR */}
+      {showChat && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 0,
+            right: 0,
+            width: "300px",
+            height: "400px", // Half height so it doesn't block history
+            background: "white",
+            border: "2px solid black",
+            display: "flex",
+            flexDirection: "column",
+            zIndex: 1000,
+            boxShadow: "-5px -5px 15px rgba(0,0,0,0.2)"
+          }}
+        >
+          {/* Header */}
+          <div style={{ background: "#333", color: "white", padding: "10px", display: "flex", justifyContent: "space-between" }}>
+            <span>Group Chat</span>
+            <button onClick={() => setShowChat(false)} style={{background:"red", color:"white", border:"none", cursor:"pointer"}}>X</button>
+          </div>
+
+          {/* Messages Area */}
+          <div style={{ flex: 1, padding: "10px", overflowY: "auto", background: "#f1f1f1" }}>
+            {message.map((msg, index) => (
+              <div key={index} style={{ marginBottom: "10px", textAlign: msg.sender === "Me" ? "right" : "left" }}>
+                <span style={{ 
+                    background: msg.sender === "Me" ? "#DCF8C6" : "white", 
+                    color: "black",
+                    padding: "5px 10px", 
+                    borderRadius: "10px", 
+                    display: "inline-block",
+                    boxShadow: "0 1px 1px rgba(0,0,0,0.1)"
+                }}>
+                  <strong>{msg.sender === "Me" ? "" : "Partner: "}</strong>
+                  {msg.message}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Input Area */}
+          <div style={{ padding: "10px", borderTop: "1px solid #ccc", display: "flex" }}>
+            <input 
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyDown={handleEnterKey}
+              placeholder="Type a message..."
+              style={{ flex: 1, padding: "5px" }}
+            />
+            <button onClick={sendMessage} style={{ marginLeft: "5px", background: "#2196F3", color: "white", border: "none" }}>Send</button>
+          </div>
+        </div>
+      )}
     </div>
+
   );
 }
 
