@@ -5,7 +5,7 @@ const cors = require('cors');
 const {exec} = require('child_process'); // to run terminal commands if needed
 const fs = require('fs'); // to handle file operations if needed
 const mongoose = require('mongoose'); 
-const { timeStamp } = require('console');
+const { timestamp } = require('console');
 
 
 const app = express();
@@ -18,7 +18,7 @@ mongoose.connect('mongodb://127.0.0.1:27017/simulcode_db').then(() => console.lo
 const CommitSchema = new mongoose.Schema({
   room:String,
   code: String,
-  timeStamp: { type: Date, default: Date.now},
+  timestamp: { type: Date, default: Date.now},
   author: String //who saved it?
 });
 
@@ -40,8 +40,8 @@ app.get('/', (req,res) => {
 // NEW API route to get history(Load old commits)
 app.get('/history/:room', async (req, res) => {
   try{
-    const commits = await Commit.find({ room: req.params.room }.sort({ timestamp: -1}));
-    res.join(commits);
+    const commits = await Commit.find({ room: req.params.room }).sort({ timestamp: -1});
+    res.json(commits);
   }catch(err){
     res.status(500).json({ error: "Failed to fetch history"});
   }
