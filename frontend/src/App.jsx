@@ -2,6 +2,11 @@ import { useEffect, useState, useRef } from "react";
 import io from "socket.io-client";
 import Editor from "@monaco-editor/react";
 import Peer from "peerjs"; //import the video tool
+import Chat from "./components/Chat";
+import Whiteboard from "./components/Whiteboard";
+import CodeEditor from "./components/CodeEditor";
+import VideoRoom from "./components/VideoRoom";
+import History from "./components/History";
 
 const socket = io("http://localhost:5000"); // Connect to the backend server
 
@@ -150,24 +155,6 @@ function App() {
     setShowHistory(false); // Close sidebar
   };
 
-  //sendchat
-  const sendMessage = () => {
-    if (newMessage.trim() === "") return;
-
-    const msgdata = { room, message: newMessage, sender: "Me" };
-
-    // add to my own list immediately
-    setMessage((prev) => [...prev, msgdata]);
-
-    //send to the server
-    socket.emit("send_chat", { room, message: newMessage, sender: "Partner" });
-
-    setNewMessage(""); // clear input
-  };
-
-  const handleEnterKey = (e) => {
-    if (e.key == "Enter") sendMessage();
-  };
 
   // 1. SETUP CAMERA (Run this immediately!)
   useEffect(() => {
@@ -301,403 +288,82 @@ function App() {
   }, [socket, peerInstance, currentStream]);
 
   return (
-    <div style={{ padding: "20px", fontFamily: "Arial" }}>
-      <h1>Simul-Code</h1>
+    <div style={{ height: "100vh", display: "flex", background: "#1e1e1e", color: "white", fontFamily: "sans-serif", overflow: "hidden" }}>
+      
+      {/* 1. LEFT SIDEBAR (Video & Controls) - 20% width */}
+      <div style={{ width: "20%", borderRight: "1px solid #333", padding: "10px", display: "flex", flexDirection: "column" }}>
+        
+        {/* Room Header */}
+        <div style={{ marginBottom: "20px", textAlign: "center" }}>
+           <h2 style={{ margin: 0, color: "#007acc" }}>SimulCode</h2>
+           <p style={{ fontSize: "12px", color: "#888" }}>Room: {room || "Not Joined"}</p>
+           
+           <div style={{ display: "flex", gap: "5px", marginTop: "10px" }}>
+              <input 
+                placeholder="ID..." 
+                onChange={(e) => setRoom(e.target.value)}
+                style={{ width: "60%", padding: "5px", background: "#333", border: "none", color: "white" }} 
+              />
+              <button onClick={joinRoom} style={{ flex: 1, background: "#444", color: "white", border: "none", cursor: "pointer" }}>Join</button>
+           </div>
+        </div>
 
-      {/* Room Controls */}
-      <div style={{ marginBottom: "20px" }}>
-        <input
-          placeholder="Room Number..."
-          onChange={(event) => {
-            setRoom(event.target.value);
-          }}
+        {/* Video Component */}
+        <VideoRoom 
+            myVideo={myVideo} 
+            peers={peers} 
+            toggleCamera={toggleCamera} 
+            toggleMic={toggleMic} 
         />
-        <button onClick={joinRoom}> Join Room </button>
 
-        {/* Added Buttons to use your Toggle Functions */}
-        <button onClick={toggleCamera} style={{ marginLeft: "10px" }}>
-          Toggle Cam
-        </button>
-        <button onClick={toggleMic} style={{ marginLeft: "10px" }}>
-          Toggle Mic
-        </button>
-        <button
-          onClick={() => setShowChat(!showChat)}
-          style={{ marginLeft: "10px" }}
-        >
-          💬 Chat
-        </button>
-        <button
-          onClick={() => setShowBoard(!showBoard)}
-          style={{ marginLeft: "10px", background: "#E91E63", color: "white" }}
-        >
-          🎨 Board
-        </button>
-      </div>
+        <History 
+    history={history}
+    showHistory={showHistory}
+    setShowHistory={setShowHistory}
+    restoreVersion={restoreHistory} 
+/>
 
-      {/* Video Grid Section */}
-      <div
-        style={{
-          display: "flex",
-          gap: "10px",
-          flexWrap: "wrap",
-          marginBottom: "20px",
-        }}
-      >
-        {/* My Video */}
-        <div style={{ width: "200px", border: "2px solid green" }}>
-          <video
-            ref={myVideo}
-            autoPlay
-            muted
-            playsInline
-            style={{ width: "100%" }}
-          />
-        </div>
-
-        {/* Friend Videos (Loop) */}
-        {peers.map((peer) => (
-          // FIXED: This Component is now defined at the bottom!
-          <VideoComponent key={peer.id} stream={peer.stream} />
-        ))}
-      </div>
-
-      {/* Editor & Output Section */}
-      <div style={{ display: "flex", gap: "20px" }}>
-        {/* Left Side: Editor + Switch Control */}
-        <div style={{ width: "60%" }}>
-          {/* Switch Control */}
-          <div style={{ marginBottom: "10px" }}>
-            {socket.id === writerId ? (
-              <span style={{ color: "#4CAF50", fontWeight: "bold" }}>
-                {" "}
-                ✏️ You are writing...{" "}
-              </span>
-            ) : (
-              <button
-                onClick={requestControl}
-                style={{
-                  background: "#2196F3",
-                  color: "white",
-                  padding: "8px",
-                  border: "none",
-                  cursor: "pointer",
-                }}
-              >
-                ✋ Take Control
-              </button>
-            )}
-
-            {/* History Button */}
-            <button
-              onClick={getHistory}
-              style={{
-                cursor: "pointer",
-                background: "#607D8B",
-                color: "white",
-                border: "none",
-                padding: "5px",
-              }}
-            >
-              {" "}
-              📜 View History{" "}
-            </button>
-          </div>
-
-          <div style={{ marginBottom: "10px" }}>
-            <label style={{ marginRight: "10px", fontWeight: "bold" }}>
-              Language:
-            </label>
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              style={{ padding: "5px" }}
-            >
-              <option value="python">Python</option>
-              <option value="javascript">JavaScript</option>
-              <option value="cpp">C++ (Requires g++)</option>
-              <option value="java">Java (Requires JDK)</option>
-            </select>
-          </div>
-
-          <Editor
-            height="50vh"
-            defaultLanguage={language}
-            theme="vs-dark"
-            value={code}
-            onChange={handleEditorChange}
-            options={{ readOnly: socket.id !== writerId }}
-          />
-          <br />
-          <button
-            onClick={runCode}
-            style={{
-              padding: "10px 20px",
-              fontSize: "16px",
-              cursor: "pointer",
-              backgroundColor: "#4CAF50",
-              color: "white",
-              border: "none",
-            }}
-          >
-            Run Code
-          </button>
-          <button
-            onClick={saveCode}
-            style={{
-              marginTop: "10px",
-              marginLeft: "10px",
-              padding: "10px",
-              background: "#FF9800",
-              color: "white",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            💾 Commit / Save
-          </button>
-        </div>
-
-        {/* Right Side: Output */}
-        <div
-          style={{
-            width: "40%",
-            height: "50vh",
-            background: "#1e1e1e",
-            color: "white",
-            padding: "10px",
-            overflowY: "auto",
-          }}
-        >
-          <h3>Output:</h3>
-          <pre>{output}</pre>
+        {/* Extra Tools */}
+        <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "5px" }}>
+            <button onClick={() => setShowChat(!showChat)} style={{ padding: "10px", background: "#333", color: "white", border: "none", cursor: "pointer" }}>💬 Chat</button>
+            <button onClick={() => setShowBoard(!showBoard)} style={{ padding: "10px", background: "#333", color: "white", border: "none", cursor: "pointer" }}>🎨 Whiteboard</button>
+            <button onClick={getHistory} style={{ padding: "10px", background: "#333", color: "white", border: "none", cursor: "pointer" }}>📜 History</button>
         </div>
       </div>
 
-      {/* NEW: HISTORY SIDEBAR (Only visible when showHistory is true) */}
-      {showHistory && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            right: 0,
-            width: "300px",
-            height: "100%",
-            background: "white",
-            borderLeft: "2px solid black",
-            padding: "20px",
-            boxShadow: "-5px 0 15px rgba(0,0,0,0.3)",
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <h2>Version History</h2>
-            <button onClick={() => setShowHistory(false)}>X</button>
-          </div>
-          <hr />
-          <div style={{ overflowY: "auto", height: "90%" }}>
-            {history.length === 0 ? <p>No history found.</p> : null}
+      {/* 2. MIDDLE (Code Editor) - 50% width */}
+      <div style={{ width: "50%", borderRight: "1px solid #333" }}>
+         <CodeEditor 
+            code={code} 
+            handleEditorChange={handleEditorChange}
+            language={language}
+            setLanguage={setLanguage}
+            writerId={writerId}
+            socketId={socket.id}
+            requestControl={requestControl}
+            runCode={runCode}
+            saveCode={saveCode}
+         />
+      </div>
 
-            {history.map((commit, index) => (
-              <div
-                key={index}
-                style={{
-                  borderBottom: "1px solid #ccc",
-                  padding: "10px",
-                  cursor: "pointer",
-                  background: "#f9f9f9",
-                  marginBottom: "5px",
-                }}
-                onClick={() => restoreHistory(commit.code)}
-              >
-                <strong>
-                  {new Date(commit.timestamp).toLocaleTimeString()}
-                </strong>
-                <p style={{ fontSize: "12px", color: "gray" }}>
-                  {commit.code.substring(0, 30)}...
-                </p>
-                <small>Click to Restore</small>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* 3. RIGHT SIDEBAR (Output) - 30% width */}
+      <div style={{ width: "30%", background: "#1e1e1e", display: "flex", flexDirection: "column" }}>
+         <div style={{ padding: "10px", background: "#252526", borderBottom: "1px solid #333", fontWeight: "bold" }}>
+            🖥️ Terminal Output
+         </div>
+         <pre style={{ padding: "15px", color: "#d4d4d4", fontFamily: "monospace", overflow: "auto", flex: 1 }}>
+            {output || "Run code to see output..."}
+         </pre>
+      </div>
 
-      {/* CHAT SIDEBAR */}
-      {showChat && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: 0,
-            right: 0,
-            width: "300px",
-            height: "400px", // Half height so it doesn't block history
-            background: "white",
-            border: "2px solid black",
-            display: "flex",
-            flexDirection: "column",
-            zIndex: 1000,
-            boxShadow: "-5px -5px 15px rgba(0,0,0,0.2)",
-          }}
-        >
-          {/* Header */}
-          <div
-            style={{
-              background: "#333",
-              color: "white",
-              padding: "10px",
-              display: "flex",
-              justifyContent: "space-between",
-            }}
-          >
-            <span>Group Chat</span>
-            <button
-              onClick={() => setShowChat(false)}
-              style={{
-                background: "red",
-                color: "white",
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
-              X
-            </button>
-          </div>
+      {/* Overlays */}
+      <Chat room={room} socket={socket} messages={message} setMessage={setMessage} showChat={showChat} setShowChat={setShowChat} />
+      <Whiteboard canvasRef={canvasRef} ctxRef={ctxRef} showBoard={showBoard} setShowBoard={setShowBoard} startDrawing={startDrawing} endDrawing={endDrawing} draw={draw} />
+      {/* (You can style the History Sidebar similarly later) */}
 
-          {/* Messages Area */}
-          <div
-            style={{
-              flex: 1,
-              padding: "10px",
-              overflowY: "auto",
-              background: "#f1f1f1",
-            }}
-          >
-            {message.map((msg, index) => (
-              <div
-                key={index}
-                style={{
-                  marginBottom: "10px",
-                  textAlign: msg.sender === "Me" ? "right" : "left",
-                }}
-              >
-                <span
-                  style={{
-                    background: msg.sender === "Me" ? "#DCF8C6" : "white",
-                    color: "black",
-                    padding: "5px 10px",
-                    borderRadius: "10px",
-                    display: "inline-block",
-                    boxShadow: "0 1px 1px rgba(0,0,0,0.1)",
-                  }}
-                >
-                  <strong>{msg.sender === "Me" ? "" : "Partner: "}</strong>
-                  {msg.message}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* Input Area */}
-          <div
-            style={{
-              padding: "10px",
-              borderTop: "1px solid #ccc",
-              display: "flex",
-            }}
-          >
-            <input
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              onKeyDown={handleEnterKey}
-              placeholder="Type a message..."
-              style={{ flex: 1, padding: "5px" }}
-            />
-            <button
-              onClick={sendMessage}
-              style={{
-                marginLeft: "5px",
-                background: "#2196F3",
-                color: "white",
-                border: "none",
-              }}
-            >
-              Send
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* WHITEBOARD OVERLAY */}
-      {showBoard && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-            background: "rgba(0,0,0,0.8)",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            zIndex: 2000,
-          }}
-        >
-          <div
-            style={{
-              background: "white",
-              padding: "10px",
-              borderRadius: "10px",
-              position: "relative",
-            }}
-          >
-            <button
-              onClick={() => setShowBoard(false)}
-              style={{
-                position: "absolute",
-                top: 10,
-                right: 10,
-                background: "red",
-                color: "white",
-              }}
-            >
-              Close
-            </button>
-            <canvas
-              ref={canvasRef}
-              onMouseDown={startDrawing}
-              onMouseUp={endDrawing}
-              onMouseMove={draw}
-              style={{ border: "2px solid black", cursor: "crosshair" }}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
-// FIXED: Added the missing helper component here
-const VideoComponent = ({ stream }) => {
-  const videoRef = useRef();
-
-  useEffect(() => {
-    if (videoRef.current) videoRef.current.srcObject = stream;
-  }, [stream]);
-
-  return (
-    <div style={{ border: "2px solid red", padding: "5px", width: "200px" }}>
-      <h4>Partner</h4>
-      <video ref={videoRef} autoPlay playsInline style={{ width: "100%" }} />
-    </div>
-  );
-};
 
 export default App;
