@@ -97,6 +97,17 @@ io.on('connection',(socket) => {
     socket.to(room).emit("receive_chat", { message, sender });
   });
 
+  //white board
+    socket.on("draw",(data) => {
+      //broadcast drawing data to everyone else in the room
+      socket.to(data.room).emit("on_draw",data);
+    });
+
+    // NEW: Add this to fix the "Connecting Lines" glitch
+  socket.on("start_draw", (data) => {
+    socket.to(data.room).emit("start_draw", data);
+  });
+
 
   //user.wants to run code 
   socket.on("run_code", (data) => {

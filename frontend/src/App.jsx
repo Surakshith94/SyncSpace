@@ -37,6 +37,12 @@ function App() {
   const [newMessage, setNewMessage] = useState(""); // stores the text you are typing
   const [showChat, setShowChat] = useState(false); // toggle chat sidebar
 
+  //whiteboard state
+  const [showBoard, setShowBoard] = useState(false);
+  const canvasRef = useRef(null);
+  const ctxRef = useRef(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+
   // medio controll - camera
   const toggleCamera = () => {
     if (currentStream) {
@@ -107,6 +113,36 @@ function App() {
     }
   };
 
+  //start drawing
+  const startDrawing = ({ nativeEvent }) => {
+    const { offsetX, offsetY } = nativeEvent;
+    ctxRef.current.beginPath();
+    ctxRef.current.moveTo(offsetX, offsetY);
+    setIsDrawing(true);
+
+    // tell partner to lift their pen and move to this spot
+    socket.emit("start_draw",{ room, offsetX, offsetY });
+  };
+
+  //stop drawing
+  const endDrawing = () => {
+    ctxRef.current.closePath();
+    setIsDrawing(false);
+  };
+
+  // Draw & Send to Socket
+  const draw = ({ nativeEvent }) => {
+    if (!isDrawing) return;
+    const { offsetX, offsetY } = nativeEvent;
+
+    // Draw on MY screen
+    ctxRef.current.lineTo(offsetX, offsetY);
+    ctxRef.current.stroke();
+
+    // Send to PARTNER
+    socket.emit("draw", { room, offsetX, offsetY });
+  };
+
   // restore an old version
   const restoreHistory = async (oldCode) => {
     setCode(oldCode);
@@ -118,19 +154,19 @@ function App() {
   const sendMessage = () => {
     if (newMessage.trim() === "") return;
 
-    const msgdata = { room, message: newMessage, sender: "Me"};
+    const msgdata = { room, message: newMessage, sender: "Me" };
 
     // add to my own list immediately
     setMessage((prev) => [...prev, msgdata]);
 
     //send to the server
-    socket.emit("send_chat", { room, message:newMessage, sender: "Partner"});
+    socket.emit("send_chat", { room, message: newMessage, sender: "Partner" });
 
     setNewMessage(""); // clear input
   };
 
   const handleEnterKey = (e) => {
-    if(e.key == "Enter") sendMessage();
+    if (e.key == "Enter") sendMessage();
   };
 
   // 1. SETUP CAMERA (Run this immediately!)
@@ -182,6 +218,21 @@ function App() {
     };
   }, [currentStream]); //re-run if currentStream changes
 
+  //initialize canvas when opened
+  useEffect(() => {
+    if (showBoard && canvasRef.current) {
+      const canvas = canvasRef.current;
+      canvas.width = window.innerWidth * 0.8; // 80% width
+      canvas.height = window.innerHeight * 0.8;
+
+      const ctx = canvas.getContext("2d");
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "black";
+      ctx.lineWidth = 5;
+      ctxRef.current = ctx;
+    }
+  }, [showBoard]);
+
   useEffect(() => {
     // This keeps the ear open for messages coming FROM the Backend
     socket.on("receive_message", (data) => {
@@ -203,9 +254,25 @@ function App() {
     });
 
     socket.on("receive_chat", (data) => {
-        setMessage((prev) => [...prev, data]);
-        setShowChat(true); //auto-open chat if someone messages
-      });
+      setMessage((prev) => [...prev, data]);
+      setShowChat(true); //auto-open chat if someone messages
+    });
+
+    // LISTEN FOR DRAWING
+    socket.on("on_draw", (data) => {
+      if (!ctxRef.current) return;
+      // Draw what the partner sent
+      // Note: This is a simple implementation (lines might look dotty on slow connections)
+      ctxRef.current.lineTo(data.offsetX, data.offsetY);
+      ctxRef.current.stroke();
+    });
+
+    // 2. LISTEN FOR START (App.jsx - Inside useEffect)
+    socket.on("start_draw", (data) => {
+        if (!ctxRef.current) return;
+        ctxRef.current.beginPath();
+        ctxRef.current.moveTo(data.offsetX, data.offsetY);
+    });
 
     socket.on("user-connected", (userId) => {
       console.log("New User Connected: " + userId);
@@ -219,7 +286,6 @@ function App() {
           addPeer(userId, userVideoStream);
         });
       }
-
     });
 
     return () => {
@@ -229,6 +295,8 @@ function App() {
       socket.off("update_writer");
       socket.off("code_saved");
       socket.off("receive_chat");
+      socket.off("on_draw");
+      socket.off("start_draw");
     };
   }, [socket, peerInstance, currentStream]);
 
@@ -253,9 +321,18 @@ function App() {
         <button onClick={toggleMic} style={{ marginLeft: "10px" }}>
           Toggle Mic
         </button>
-        <button onClick={() => setShowChat(!showChat)} style={{ marginLeft: "10px" }}> 
-  💬 Chat 
-</button>
+        <button
+          onClick={() => setShowChat(!showChat)}
+          style={{ marginLeft: "10px" }}
+        >
+          💬 Chat
+        </button>
+        <button
+          onClick={() => setShowBoard(!showBoard)}
+          style={{ marginLeft: "10px", background: "#E91E63", color: "white" }}
+        >
+          🎨 Board
+        </button>
       </div>
 
       {/* Video Grid Section */}
@@ -466,27 +543,60 @@ function App() {
             display: "flex",
             flexDirection: "column",
             zIndex: 1000,
-            boxShadow: "-5px -5px 15px rgba(0,0,0,0.2)"
+            boxShadow: "-5px -5px 15px rgba(0,0,0,0.2)",
           }}
         >
           {/* Header */}
-          <div style={{ background: "#333", color: "white", padding: "10px", display: "flex", justifyContent: "space-between" }}>
+          <div
+            style={{
+              background: "#333",
+              color: "white",
+              padding: "10px",
+              display: "flex",
+              justifyContent: "space-between",
+            }}
+          >
             <span>Group Chat</span>
-            <button onClick={() => setShowChat(false)} style={{background:"red", color:"white", border:"none", cursor:"pointer"}}>X</button>
+            <button
+              onClick={() => setShowChat(false)}
+              style={{
+                background: "red",
+                color: "white",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              X
+            </button>
           </div>
 
           {/* Messages Area */}
-          <div style={{ flex: 1, padding: "10px", overflowY: "auto", background: "#f1f1f1" }}>
+          <div
+            style={{
+              flex: 1,
+              padding: "10px",
+              overflowY: "auto",
+              background: "#f1f1f1",
+            }}
+          >
             {message.map((msg, index) => (
-              <div key={index} style={{ marginBottom: "10px", textAlign: msg.sender === "Me" ? "right" : "left" }}>
-                <span style={{ 
-                    background: msg.sender === "Me" ? "#DCF8C6" : "white", 
+              <div
+                key={index}
+                style={{
+                  marginBottom: "10px",
+                  textAlign: msg.sender === "Me" ? "right" : "left",
+                }}
+              >
+                <span
+                  style={{
+                    background: msg.sender === "Me" ? "#DCF8C6" : "white",
                     color: "black",
-                    padding: "5px 10px", 
-                    borderRadius: "10px", 
+                    padding: "5px 10px",
+                    borderRadius: "10px",
                     display: "inline-block",
-                    boxShadow: "0 1px 1px rgba(0,0,0,0.1)"
-                }}>
+                    boxShadow: "0 1px 1px rgba(0,0,0,0.1)",
+                  }}
+                >
                   <strong>{msg.sender === "Me" ? "" : "Partner: "}</strong>
                   {msg.message}
                 </span>
@@ -495,20 +605,82 @@ function App() {
           </div>
 
           {/* Input Area */}
-          <div style={{ padding: "10px", borderTop: "1px solid #ccc", display: "flex" }}>
-            <input 
+          <div
+            style={{
+              padding: "10px",
+              borderTop: "1px solid #ccc",
+              display: "flex",
+            }}
+          >
+            <input
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyDown={handleEnterKey}
               placeholder="Type a message..."
               style={{ flex: 1, padding: "5px" }}
             />
-            <button onClick={sendMessage} style={{ marginLeft: "5px", background: "#2196F3", color: "white", border: "none" }}>Send</button>
+            <button
+              onClick={sendMessage}
+              style={{
+                marginLeft: "5px",
+                background: "#2196F3",
+                color: "white",
+                border: "none",
+              }}
+            >
+              Send
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* WHITEBOARD OVERLAY */}
+      {showBoard && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            background: "rgba(0,0,0,0.8)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 2000,
+          }}
+        >
+          <div
+            style={{
+              background: "white",
+              padding: "10px",
+              borderRadius: "10px",
+              position: "relative",
+            }}
+          >
+            <button
+              onClick={() => setShowBoard(false)}
+              style={{
+                position: "absolute",
+                top: 10,
+                right: 10,
+                background: "red",
+                color: "white",
+              }}
+            >
+              Close
+            </button>
+            <canvas
+              ref={canvasRef}
+              onMouseDown={startDrawing}
+              onMouseUp={endDrawing}
+              onMouseMove={draw}
+              style={{ border: "2px solid black", cursor: "crosshair" }}
+            />
           </div>
         </div>
       )}
     </div>
-
   );
 }
 
