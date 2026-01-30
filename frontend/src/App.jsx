@@ -20,6 +20,8 @@ function App() {
   // we store array of video streams: [{id: "abc", stream:...},{id:"def",stream:...}..]
   const [peers, setPeers] = useState([]);
 
+  const [language, setLanguage] = useState("python"); // default python
+
   //to take control of editor
   const [writerId, setWriterId] = useState("");
 
@@ -75,7 +77,7 @@ function App() {
   };
 
   const runCode = () => {
-    socket.emit("run_code", { code, room }); // Send code to backend for execution
+    socket.emit("run_code", { code, room, language }); // Send code to backend for execution
   };
 
   const requestControl = () => {
@@ -291,9 +293,25 @@ function App() {
             </button>
           </div>
 
+          <div style={{ marginBottom: "10px" }}>
+            <label style={{ marginRight: "10px", fontWeight: "bold" }}>
+              Language:
+            </label>
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              style={{ padding: "5px" }}
+            >
+              <option value="python">Python</option>
+              <option value="javascript">JavaScript</option>
+              <option value="cpp">C++ (Requires g++)</option>
+              <option value="java">Java (Requires JDK)</option>
+            </select>
+          </div>
+
           <Editor
             height="50vh"
-            defaultLanguage="python"
+            defaultLanguage={language}
             theme="vs-dark"
             value={code}
             onChange={handleEditorChange}
