@@ -23,6 +23,10 @@ function App() {
   //to take control of editor
   const [writerId, setWriterId] = useState("");
 
+  // for history
+  const [history, setHistory] = useState([]);
+  const [showHistory, setShowHistory] = useState(false); //tp toggle sidebar
+
   // keep track of our own stream so we don't have to ask for camera twice
   const [currentStream, setCurrentStream] = useState(null);
 
@@ -43,6 +47,8 @@ function App() {
 
   const saveCode = () => {
     socket.emit("save_code", { room, code });
+    // optional: refresh history immediatly after saving
+    getHistory();
     alert("Code Committed/Saved to Database!");
   };
 
@@ -74,6 +80,31 @@ function App() {
 
   const requestControl = () => {
     socket.emit("request_writer", { room });
+  };
+
+  //fetch history from backend
+  const getHistory = async () => {
+    if (!room) return;
+    try {
+      const res = await fetch(`http://localhost:5000/history/${room}`);
+      const data = await res.json();
+      // SAFETY CHECK: Only update if it is actually a list (Array)
+      if (Array.isArray(data)) {
+        setHistory(data);
+        setShowHistory(true);
+      } else {
+        console.error("Error fetching history:", data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch history", err);
+    }
+  };
+
+  // restore an old version
+  const restoreHistory = async (oldCode) => {
+    setCode(oldCode);
+    socket.emit("send_message", { message: oldCode, room }); // tell everyone we reverted
+    setShowHistory(false); // Close sidebar
   };
 
   // 1. SETUP CAMERA (Run this immediately!)
@@ -243,6 +274,21 @@ function App() {
                 ✋ Take Control
               </button>
             )}
+
+            {/* History Button */}
+            <button
+              onClick={getHistory}
+              style={{
+                cursor: "pointer",
+                background: "#607D8B",
+                color: "white",
+                border: "none",
+                padding: "5px",
+              }}
+            >
+              {" "}
+              📜 View History{" "}
+            </button>
           </div>
 
           <Editor
@@ -298,6 +344,61 @@ function App() {
           <pre>{output}</pre>
         </div>
       </div>
+
+      {/* NEW: HISTORY SIDEBAR (Only visible when showHistory is true) */}
+      {showHistory && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            right: 0,
+            width: "300px",
+            height: "100%",
+            background: "white",
+            borderLeft: "2px solid black",
+            padding: "20px",
+            boxShadow: "-5px 0 15px rgba(0,0,0,0.3)",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <h2>Version History</h2>
+            <button onClick={() => setShowHistory(false)}>X</button>
+          </div>
+          <hr />
+          <div style={{ overflowY: "auto", height: "90%" }}>
+            {history.length === 0 ? <p>No history found.</p> : null}
+
+            {history.map((commit, index) => (
+              <div
+                key={index}
+                style={{
+                  borderBottom: "1px solid #ccc",
+                  padding: "10px",
+                  cursor: "pointer",
+                  background: "#f9f9f9",
+                  marginBottom: "5px",
+                }}
+                onClick={() => restoreHistory(commit.code)}
+              >
+                <strong>
+                  {new Date(commit.timestamp).toLocaleTimeString()}
+                </strong>
+                <p style={{ fontSize: "12px", color: "gray" }}>
+                  {commit.code.substring(0, 30)}...
+                </p>
+                <small>Click to Restore</small>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
