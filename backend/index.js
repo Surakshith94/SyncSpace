@@ -5,7 +5,6 @@ const cors = require('cors');
 const {exec} = require('child_process'); // to run terminal commands if needed
 const fs = require('fs'); // to handle file operations if needed
 const mongoose = require('mongoose'); 
-const { timestamp } = require('console');
 
 
 const app = express();
@@ -96,24 +95,54 @@ io.on('connection',(socket) => {
   socket.on("run_code", (data) => {
     // Here you can implement code execution logic
     // For security reasons, be very careful with executing arbitrary code
-    const {code, room} = data;
-    const filename = `test-${socket.id}.py`;
+    const {code, room, language } = data;
+    const timestamp = Date.now(); //use timestamp to avoid file conflicts
+    let command = ""
+    let filename = "";
+
+    //determine fileextension & command
+    if(language === "python"){
+      filename = `test-${timestamp}.py`;
+      command = `python ${filename}`;
+    }
+    else if(language === "javascript"){
+      filename = `test-${timestamp}.js`;
+      command = `node ${filename}`;
+    }
+    else if(language === "cpp"){
+      filename = `test-${timestamp}.cpp`;
+      // Compile to 'out.exe' then run it
+      // Note: This requires g++ installed on your PC
+      command = `g++ ${filename} -o out-${timestamp} && out-${timestamp}`;
+    }
+    else if(language === "java"){
+      // Java is tricky: Class name must match filename. 
+      // We will force a wrapper class or just assume simple snippets.
+      // For simplicity, we save as "Main.java" (Concurrency issue warning!)
+      filename = `Main.java`; 
+      command = `javac ${filename} && java Main`;
+    }
 
     //A.save code to a temporary file 
     fs.writeFileSync(filename, code);
 
     //B.run the file using python
-    exec(`python ${filename}`, (error, stdout, stderr) => {
+    exec(command, (error, stdout, stderr) => {
       //C.check for errors
       if (error) {
         //send error back to room
-        io.to(room).emit("receive_output",stderr);
+        io.to(room).emit("receive_output",stderr || error.message);
       }
       else {
         //send output back to room
         io.to(room).emit("receive_output", stdout);
       }
-      try{ fs.unlinkSync(filename); } catch (e) {}
+      // 2. Cleanup (Delete file AND the executable if C++)
+      try { 
+          fs.unlinkSync(filename); 
+          if(language === "cpp") fs.unlinkSync(`out-${timestamp}.exe`);
+          if(language === "java") fs.unlinkSync(`Main.class`);
+      } catch (e) {}
     });
   });
 
