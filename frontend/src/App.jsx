@@ -1,12 +1,12 @@
 import { useEffect, useState, useRef } from "react";
 import io from "socket.io-client";
-import Editor from "@monaco-editor/react";
 import Peer from "peerjs"; //import the video tool
 import Chat from "./components/Chat";
 import Whiteboard from "./components/Whiteboard";
 import CodeEditor from "./components/CodeEditor";
 import VideoRoom from "./components/VideoRoom";
 import History from "./components/History";
+import AIChat from "./components/AIChat";
 
 const socket = io("http://localhost:5000"); // Connect to the backend server
 
@@ -17,8 +17,13 @@ function App() {
 
   const [room, setRoom] = useState("");
 
-  // This variable will hold the reference to the HTML video box
-  const myVideo = useRef();
+  const [isMicOn, setIsMicOn] = useState(true);
+  const [isCameraOn, setIsCameraOn] = useState(true);
+  // create a ref to hold stream 
+  const streamRef = useRef(null);
+
+  const [showAIChat, setShowAIChat] = useState(false);
+
   const [peerInstance, setPeerInstance] = useState(null); // to hold PeerJS instance
   const [myPeerId, setMyPeerId] = useState(""); // to store my own Peer ID
 
@@ -29,6 +34,8 @@ function App() {
 
   //to take control of editor
   const [writerId, setWriterId] = useState("");
+
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // for history
   const [history, setHistory] = useState([]);
@@ -53,6 +60,7 @@ function App() {
     if (currentStream) {
       const videoTrack = currentStream.getVideoTracks()[0];
       videoTrack.enabled = !videoTrack.enabled; // Toggle on/off
+      setIsCameraOn(videoTrack.enabled) //update state
     }
   };
 
@@ -60,6 +68,7 @@ function App() {
     if (currentStream) {
       const audioTrack = currentStream.getAudioTracks()[0];
       audioTrack.enabled = !audioTrack.enabled; // Toggle Mute/Unmute
+      setIsMicOn(audioTrack.enabled); // update State
     }
   };
 
@@ -161,12 +170,9 @@ function App() {
     navigator.mediaDevices
       .getUserMedia({ video: true, audio: true })
       .then((stream) => {
-        // Show my face immediately
-        if (myVideo.current) {
-          myVideo.current.srcObject = stream;
-        }
         // Save the stream to state so we can use it for calls later
         setCurrentStream(stream);
+        streamRef.current = stream; // save to Ref for PeerJS
       })
       .catch((err) => {
         console.error("Error accessing camera:", err);
@@ -183,18 +189,14 @@ function App() {
     });
 
     peer.on("call", (call) => {
-      navigator.mediaDevices
-        .getUserMedia({ video: true, audio: true })
-        .then((stream) => {
-          // Answer with the stream we already captured (currentStream)
-          if (currentStream) {
-            call.answer(currentStream);
-
-            call.on("stream", (userVideoStream) => {
-              addPeer(call.peer, userVideoStream);
-            });
-          }
+      //answer with the stream we stores in the ref
+      const stream = streamRef.current;
+      if(stream){
+        call.answer(stream);
+        call.on("stream", (userVideoStream) => {
+          addPeer(call.peer, userVideoStream);
         });
+      }
     });
 
     setPeerInstance(peer);
@@ -203,7 +205,7 @@ function App() {
     return () => {
       peer.destroy();
     };
-  }, [currentStream]); //re-run if currentStream changes
+  }, []); 
 
   //initialize canvas when opened
   useEffect(() => {
@@ -261,12 +263,13 @@ function App() {
         ctxRef.current.moveTo(data.offsetX, data.offsetY);
     });
 
-    socket.on("user-connected", (userId) => {
+    socket.on("user_joined", (userId) => {
       console.log("New User Connected: " + userId);
+      const stream = streamRef.current;
       // Get my video/audio stream
-      if (peerInstance && currentStream) {
+      if (peerInstance && stream) {
         // Call the new user with our existing stream
-        const call = peerInstance.call(userId, currentStream);
+        const call = peerInstance.call(userId, stream);
 
         call.on("stream", (userVideoStream) => {
           // Show their video in the userVideo box
@@ -278,91 +281,140 @@ function App() {
     return () => {
       socket.off("receive_message");
       socket.off("receive_output");
-      socket.off("user-connected");
+      socket.off("user-joined");
       socket.off("update_writer");
       socket.off("code_saved");
       socket.off("receive_chat");
       socket.off("on_draw");
       socket.off("start_draw");
     };
-  }, [socket, peerInstance, currentStream]);
+  }, [peerInstance]);
 
   return (
     <div style={{ height: "100vh", display: "flex", background: "#1e1e1e", color: "white", fontFamily: "sans-serif", overflow: "hidden" }}>
       
-      {/* 1. LEFT SIDEBAR (Video & Controls) - 20% width */}
-      <div style={{ width: "20%", borderRight: "1px solid #333", padding: "10px", display: "flex", flexDirection: "column" }}>
-        
-        {/* Room Header */}
-        <div style={{ marginBottom: "20px", textAlign: "center" }}>
-           <h2 style={{ margin: 0, color: "#007acc" }}>SimulCode</h2>
-           <p style={{ fontSize: "12px", color: "#888" }}>Room: {room || "Not Joined"}</p>
-           
-           <div style={{ display: "flex", gap: "5px", marginTop: "10px" }}>
-              <input 
-                placeholder="ID..." 
-                onChange={(e) => setRoom(e.target.value)}
-                style={{ width: "60%", padding: "5px", background: "#333", border: "none", color: "white" }} 
-              />
-              <button onClick={joinRoom} style={{ flex: 1, background: "#444", color: "white", border: "none", cursor: "pointer" }}>Join</button>
-           </div>
-        </div>
-
-        {/* Video Component */}
-        <VideoRoom 
-            myVideo={myVideo} 
-            peers={peers} 
-            toggleCamera={toggleCamera} 
-            toggleMic={toggleMic} 
-        />
-
-        <History 
-    history={history}
-    showHistory={showHistory}
-    setShowHistory={setShowHistory}
-    restoreVersion={restoreHistory} 
-/>
-
-        {/* Extra Tools */}
-        <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "5px" }}>
-            <button onClick={() => setShowChat(!showChat)} style={{ padding: "10px", background: "#333", color: "white", border: "none", cursor: "pointer" }}>💬 Chat</button>
-            <button onClick={() => setShowBoard(!showBoard)} style={{ padding: "10px", background: "#333", color: "white", border: "none", cursor: "pointer" }}>🎨 Whiteboard</button>
-            <button onClick={getHistory} style={{ padding: "10px", background: "#333", color: "white", border: "none", cursor: "pointer" }}>📜 History</button>
-        </div>
-      </div>
-
-      {/* 2. MIDDLE (Code Editor) - 50% width */}
-      <div style={{ width: "50%", borderRight: "1px solid #333" }}>
-         <CodeEditor 
-            code={code} 
-            handleEditorChange={handleEditorChange}
-            language={language}
-            setLanguage={setLanguage}
-            writerId={writerId}
-            socketId={socket.id}
-            requestControl={requestControl}
-            runCode={runCode}
-            saveCode={saveCode}
-         />
-      </div>
-
-      {/* 3. RIGHT SIDEBAR (Output) - 30% width */}
-      <div style={{ width: "30%", background: "#1e1e1e", display: "flex", flexDirection: "column" }}>
-         <div style={{ padding: "10px", background: "#252526", borderBottom: "1px solid #333", fontWeight: "bold" }}>
-            🖥️ Terminal Output
+      {/* 1. ACTIVITY BAR (Far Left - Icons Only) */}
+      <div style={{ width: "50px", background: "#333", display: "flex", flexDirection: "column", alignItems: "center", padding: "10px 0", borderRight: "1px solid #444", zIndex: 5 }}>
+         <div title="Explorer/Video" onClick={() => setSidebarOpen(!sidebarOpen)} style={{ cursor: "pointer", marginBottom: "20px", opacity: sidebarOpen ? 1 : 0.5, fontSize: "24px" }}>
+            📝
          </div>
-         <pre style={{ padding: "15px", color: "#d4d4d4", fontFamily: "monospace", overflow: "auto", flex: 1 }}>
-            {output || "Run code to see output..."}
-         </pre>
+         <div title="Chat" onClick={() => setShowChat(!showChat)} style={{ cursor: "pointer", marginBottom: "20px", fontSize: "24px" }}>
+            💬
+         </div>
+         <div title="History" onClick={getHistory} style={{ cursor: "pointer", marginBottom: "20px", fontSize: "24px" }}>
+            📜
+         </div>
+         <div title="Whiteboard" onClick={() => setShowBoard(!showBoard)} style={{ cursor: "pointer", marginBottom: "20px", fontSize: "24px" }}>
+            🎨
+         </div>
+         <div title="AI Assistant" onClick={() => setShowAIChat(!showAIChat)} style={{ cursor: "pointer", marginBottom: "20px", fontSize: "24px" }}>🤖</div>
       </div>
 
-      {/* Overlays */}
-      <Chat room={room} socket={socket} messages={message} setMessage={setMessage} showChat={showChat} setShowChat={setShowChat} />
-      <Whiteboard canvasRef={canvasRef} ctxRef={ctxRef} showBoard={showBoard} setShowBoard={setShowBoard} startDrawing={startDrawing} endDrawing={endDrawing} draw={draw} />
-      {/* (You can style the History Sidebar similarly later) */}
+      {/* 2. SIDEBAR PANEL (Collapsible - Video & Controls) */}
+      {sidebarOpen && (
+        <div style={{ width: "20%", minWidth: "250px", background: "#252526", borderRight: "1px solid #111", display: "flex", flexDirection: "column" }}>
+            <div style={{ padding: "10px", background: "#333", fontWeight: "bold", fontSize: "12px", letterSpacing: "1px" }}>
+                EXPLORER: ROOM {room || "UNCONNECTED"}
+            </div>
+            
+            {/* Room ID Input */}
+            <div style={{ padding: "10px" }}>
+                <div style={{ display: "flex", gap: "5px" }}>
+                    <input 
+                        placeholder="Room ID" 
+                        onChange={(e) => setRoom(e.target.value)}
+                        style={{ width: "100%", padding: "5px", background: "#3c3c3c", border: "1px solid #555", color: "white", outline: "none" }} 
+                    />
+                    <button onClick={joinRoom} style={{ background: "#0e639c", color: "white", border: "none", cursor: "pointer", padding: "0 10px" }}>Join</button>
+                </div>
+            </div>
+
+            {/* Video Area */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "10px" }}>
+                <VideoRoom 
+                    stream={currentStream} 
+                    peers={peers} 
+                    toggleCamera={toggleCamera} 
+                    toggleMic={toggleMic} 
+                    isMicOn={isMicOn}
+                    isCameraOn={isCameraOn}
+                />
+            </div>
+        </div>
+      )}
+
+      {/* 3. MAIN EDITOR AREA (Takes remaining space) */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", maxWidth: sidebarOpen ? "80%" : "calc(100% - 50px)" }}>
+         
+         {/* File Tabs (Visual Only) */}
+         <div style={{ display: "flex", background: "#252526", height: "35px", alignItems: "flex-end" }}>
+            <div style={{ padding: "8px 15px", background: "#1e1e1e", borderTop: "2px solid #007acc", fontSize: "13px", display: "flex", alignItems: "center", cursor: "pointer", color: "white" }}>
+                <span style={{ marginRight: "5px" }}>
+                    {language === "python" ? "🐍" : language === "javascript" ? "🟨" : language === "cpp" ? "⚙️" : "☕"}
+                </span> 
+                main.{language === "python" ? "py" : language === "javascript" ? "js" : language === "cpp" ? "cpp" : "java"}
+                <span style={{ marginLeft: "10px", fontSize: "12px", color: "#ccc" }}>✕</span>
+            </div>
+         </div>
+
+         {/* The Code Editor Component */}
+         <div style={{ flex: 1, position: "relative" }}>
+             <CodeEditor 
+                code={code} 
+                handleEditorChange={handleEditorChange}
+                language={language}
+                setLanguage={setLanguage}
+                writerId={writerId}
+                socketId={socket.id}
+                requestControl={requestControl}
+                runCode={runCode}
+                saveCode={saveCode}
+             />
+         </div>
+
+         {/* Simple Output Panel */}
+         <div style={{ height: "150px", background: "#1e1e1e", borderTop: "1px solid #333", display: "flex", flexDirection: "column" }}>
+             <div style={{ padding: "5px 15px", fontSize: "11px", fontWeight: "bold", borderBottom: "1px solid #333", background: "#252526", color: "#ccc" }}>
+                OUTPUT
+             </div>
+             <pre style={{ padding: "10px 15px", margin: 0, fontFamily: "Consolas, monospace", color: "#ccc", flex: 1, overflowY: "auto", fontSize: "13px" }}>
+                {output || "Run code to see result..."}
+             </pre>
+         </div>
+      </div>
+
+      {/* 4. OVERLAYS (Chat, Whiteboard, History) */}
+      <Chat 
+        room={room} 
+        socket={socket} 
+        messages={message} 
+        setMessage={setMessage} 
+        showChat={showChat} 
+        setShowChat={setShowChat} 
+      />
+      
+      <Whiteboard 
+        canvasRef={canvasRef} 
+        ctxRef={ctxRef} 
+        showBoard={showBoard} 
+        setShowBoard={setShowBoard} 
+        startDrawing={startDrawing} 
+        endDrawing={endDrawing} 
+        draw={draw} 
+      />
+      
+      <History 
+        history={history} 
+        showHistory={showHistory} 
+        setShowHistory={setShowHistory} 
+        restoreVersion={restoreHistory} 
+      />
+
+      <AIChat showAIChat={showAIChat} setShowAIChat={setShowAIChat} code={code} />
 
     </div>
   );
+  
 }
 
 
