@@ -8,6 +8,7 @@ import VideoRoom from "./VideoRoom";
 import History from "./History";
 import AIChat from "./AIChat";
 import { useParams } from "react-router-dom"; 
+import toast from "react-hot-toast";
 
 const socket = io("http://localhost:5000"); // Connect to the backend server
 
@@ -79,7 +80,7 @@ function EditorPage() {
     socket.emit("save_code", { room, code });
     // optional: refresh history immediatly after saving
     getHistory();
-    alert("Code Committed/Saved to Database!");
+    toast.success("code saved successfully!");
   };
 
   const joinRoom = () => {
@@ -166,6 +167,20 @@ function EditorPage() {
     socket.emit("send_message", { message: oldCode, room }); // tell everyone we reverted
     setShowHistory(false); // Close sidebar
   };
+
+  // FIX: Update room state when URL changes
+  useEffect(() => {
+    if (roomId) {
+      setRoom(roomId);
+    }
+  }, [roomId]);
+
+  // FIX: Auto-join when Room ID and Peer ID are ready
+  useEffect(() => {
+    if (room && myPeerId) {
+      socket.emit("join_room", { room, userId: myPeerId });
+    }
+  }, [room, myPeerId]);
 
 
   // 1. SETUP CAMERA (Run this immediately!)
@@ -268,6 +283,7 @@ function EditorPage() {
 
     socket.on("user_joined", (userId) => {
       console.log("New User Connected: " + userId);
+      toast.success("A partner joined the room! 🚀");
       const stream = streamRef.current;
       // Get my video/audio stream
       if (peerInstance && stream) {
@@ -281,6 +297,11 @@ function EditorPage() {
       }
     });
 
+    // Add this inside the useEffect where you listen to socket events
+    socket.on("user_disconnected", (userId) => {
+        toast.error("A partner left the room.");
+    });
+
     return () => {
       socket.off("receive_message");
       socket.off("receive_output");
@@ -290,6 +311,7 @@ function EditorPage() {
       socket.off("receive_chat");
       socket.off("on_draw");
       socket.off("start_draw");
+      socket.off("user_disconnected");
     };
   }, [peerInstance]);
 
@@ -316,9 +338,28 @@ function EditorPage() {
       {/* 2. SIDEBAR PANEL (Collapsible - Video & Controls) */}
       {sidebarOpen && (
         <div style={{ width: "20%", minWidth: "250px", background: "#252526", borderRight: "1px solid #111", display: "flex", flexDirection: "column" }}>
-            <div style={{ padding: "10px", background: "#333", fontWeight: "bold", fontSize: "12px", letterSpacing: "1px" }}>
-                EXPLORER: ROOM {room || "UNCONNECTED"}
-            </div>
+            {/* COPY ROOM ID FEATURE */}
+<div 
+    onClick={() => {
+        navigator.clipboard.writeText(room);
+        toast.success("Room ID copied to clipboard!");
+    }}
+    style={{ 
+        padding: "10px", 
+        background: "#333", 
+        fontWeight: "bold", 
+        fontSize: "12px", 
+        letterSpacing: "1px", 
+        cursor: "pointer", // Hand cursor
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center"
+    }}
+    title="Click to Copy Room ID"
+>
+    <span>EXPLORER: ROOM {room?.substring(0,8)}...</span>
+    <span style={{ fontSize: "14px" }}>📋</span>
+</div>
             
             {/* Room ID Input */}
             <div style={{ padding: "10px" }}>
