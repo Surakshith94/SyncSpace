@@ -5,7 +5,14 @@ const cors = require('cors');
 const {exec} = require('child_process'); // to run terminal commands if needed
 const fs = require('fs'); // to handle file operations if needed
 const mongoose = require('mongoose'); 
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
+const dotenv =  require('dotenv');
+
+dotenv.config();
+
+const genAI = new GoogleGenerativeAI(process.env.API_KEY)
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" })
 
 const app = express();
 app.use(cors()); // Enable CORS for all routes
@@ -23,6 +30,7 @@ const CommitSchema = new mongoose.Schema({
 
 const Commit = mongoose.model('Commit',CommitSchema);
 
+
 const server = http.createServer(app); // we wrap express inside raw HTTP server
 
 const io = new Server (server, {
@@ -36,6 +44,29 @@ app.get('/', (req,res) => {
   res.send('Hello World!');
 }) 
 
+//ai route
+app.post('/ask-ai', async (req, res) => {
+  const { prompt, code } = req.body;
+
+  try {
+        const result = await model.generateContent(`
+            You are an expert coding assistant.
+            Here is the user's code:
+            ${code}
+
+            User Question: ${prompt}
+
+            Answer nicely and briefly.
+        `);
+        const response = await result.response;
+        const text = response.text();
+        res.json({ result: text });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ result: "AI Error: Failed to generate response." });
+    }
+});
+
 // NEW API route to get history(Load old commits)
 app.get('/history/:room', async (req, res) => {
   try{
@@ -47,6 +78,7 @@ app.get('/history/:room', async (req, res) => {
 });
 
 const roomUsers = {};
+const roomWriters = {}; // track who is writing in each room
 
 io.on('connection',(socket) => {
   console.log(`User connected: ${socket.id}`);
@@ -58,6 +90,15 @@ io.on('connection',(socket) => {
 
     if(!roomUsers[room]) roomUsers[room] = [];
     roomUsers[room].push({ socketId: socket.id, peerId: userId});
+    
+    // If no writer exists (first user), make THIS user the writer
+    if (!roomWriters[room]) {
+        roomWriters[room] = socket.id;
+        //tell everyone
+        io.to(room).emit("update_writer", socket.id);
+    }else{
+      socket.emit("update_writer", roomWriters[room]);
+    }
     
     //send existing users to the new guy
     const existingUsers = roomUsers[room].filter(u => u.socketId !== socket.id);
@@ -168,6 +209,7 @@ io.on('connection',(socket) => {
   socket.on("request_writer",(data) => {
     const {room } = data;
     // Broadcast to the WHOLE room (including the sender): "the new writer is this user")
+    roomWriters[room] = socket.id; //update server memory
     io.in(room).emit("update_writer", socket.id);
   });
 
@@ -178,6 +220,10 @@ io.on('connection',(socket) => {
             const user = roomUsers[room][index];
             roomUsers[room].splice(index, 1);
             io.to(room).emit("user_disconnected", user.peerId);
+            // Optional: If the writer left, clear the memory
+            if(roomWriters[room] === socket.id) {
+                delete roomWriters[room];
+            }
             break;
         }
     }
