@@ -19,7 +19,7 @@ function EditorPage() {
   const navigate = useNavigate(); // For Home Button
 
   // STATE
-  const [code, setCode] = useState("# Start typing your code here...");
+  const [code, setCode] = useState("");
   const [output, setOutput] = useState("");
   const [room, setRoom] = useState(roomId);
   const [language, setLanguage] = useState("python");
