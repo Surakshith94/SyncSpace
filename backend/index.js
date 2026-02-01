@@ -244,12 +244,20 @@ io.on('connection',(socket) => {
             roomUsers[room].splice(index, 1);
             io.to(room).emit("user_disconnected", user.peerId);
             // If the room is empty, clear the memory to save RAM
-                if (roomUsers[room].length === 0) {
-                    delete roomCode[room];
-                    delete roomWriters[room];
-                } else if (roomWriters[room] === socket.id) {
-                    delete roomWriters[room];
+              if (roomWriters[room] === socket.id) {
+                // 1. Remove the old writer
+                delete roomWriters[room];
+
+                // 2. Select a NEW writer from the remaining users
+                if (roomUsers[room].length > 0) {
+                    const newWriter = roomUsers[room][0].socketId;
+                    roomWriters[room] = newWriter;
+                    
+                    // 3. Tell everyone (including the new writer)
+                    io.to(room).emit("update_writer", newWriter);
+                    console.log(`👑 Writer transfered to ${newWriter}`);
                 }
+            }
             break;
         }
     }
