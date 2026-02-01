@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast"; // Import Toast
 
 const Home = () => {
   const [roomId, setRoomId] = useState("");
@@ -9,12 +10,16 @@ const Home = () => {
   const createNewRoom = (e) => {
     e.preventDefault();
     const id = uuidv4();
-    navigate(`/editor/${id}`); // Redirect to random room
+    toast.success("Created a new room!");
+    navigate(`/editor/${id}`);
   };
 
   const joinRoom = () => {
-    if (!roomId) return;
-    navigate(`/editor/${roomId}`); // Redirect to specific room
+    if (!roomId) {
+        toast.error("Please enter a Room ID");
+        return;
+    }
+    navigate(`/editor/${roomId}`);
   };
 
   const handleEnter = (e) => {
@@ -27,21 +32,26 @@ const Home = () => {
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
-      background: "#1e1e1e", // Dark Theme
+      background: "#1e1e1e",
       color: "white",
-      fontFamily: "sans-serif"
+      fontFamily: "'Segoe UI', sans-serif"
     }}>
       <div style={{
         background: "#252526",
         padding: "40px",
-        borderRadius: "10px",
+        borderRadius: "12px",
         width: "400px",
         textAlign: "center",
-        boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
-        border: "1px solid #333"
+        boxShadow: "0 10px 30px rgba(0,0,0,0.5)", // Deep shadow
+        border: "1px solid #333",
+        animation: "fadeIn 0.5s ease-in-out" // Simple animation
       }}>
-        <h1 style={{ marginBottom: "20px", color: "#007acc" }}>🚀 SyncSpace</h1>
-        <p style={{ color: "#ccc", marginBottom: "30px" }}>Real-time Code, Chat & Video.</p>
+        <div style={{ fontSize: "50px", marginBottom: "10px" }}>🚀</div>
+        <h1 style={{ marginBottom: "10px", color: "#007acc", fontSize: "28px", letterSpacing: "1px" }}>SyncSpace</h1>
+        <p style={{ color: "#888", marginBottom: "30px", fontSize: "14px" }}>
+            Real-time Collaboration for Developers.<br/>
+            Code, Chat, Video & AI.
+        </p>
 
         <div style={{ marginBottom: "20px" }}>
           <input
@@ -51,35 +61,38 @@ const Home = () => {
             onKeyUp={handleEnter}
             style={{
               width: "100%",
-              padding: "10px",
-              borderRadius: "5px",
+              padding: "12px",
+              borderRadius: "6px",
               border: "1px solid #444",
               background: "#333",
               color: "white",
-              marginBottom: "10px",
+              marginBottom: "15px",
               outline: "none",
-              boxSizing: "border-box" // Fixes padding width issue
+              fontSize: "15px",
+              boxSizing: "border-box",
+              transition: "border 0.2s"
             }}
           />
           <button 
             onClick={joinRoom}
             style={{
               width: "100%",
-              padding: "10px",
-              borderRadius: "5px",
+              padding: "12px",
+              borderRadius: "6px",
               border: "none",
-              background: "#4CAF50",
+              background: "linear-gradient(90deg, #007acc 0%, #005fa3 100%)", // Gradient
               color: "white",
               fontWeight: "bold",
+              fontSize: "16px",
               cursor: "pointer",
-              transition: "0.3s"
+              transition: "transform 0.1s"
             }}
           >
             Join Room
           </button>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", margin: "20px 0", color: "#666" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", margin: "20px 0", color: "#666", fontSize: "12px" }}>
             <div style={{ height: "1px", width: "40%", background: "#444" }}></div>
             <span>OR</span>
             <div style={{ height: "1px", width: "40%", background: "#444" }}></div>
@@ -89,16 +102,29 @@ const Home = () => {
           onClick={createNewRoom}
           style={{
             background: "transparent",
-            color: "#007acc",
-            border: "none",
+            color: "#4CAF50", // Green for "New"
+            border: "1px solid #4CAF50",
+            padding: "8px 15px",
+            borderRadius: "5px",
             cursor: "pointer",
-            textDecoration: "underline",
-            fontSize: "14px"
+            fontSize: "14px",
+            fontWeight: "bold",
+            transition: "background 0.3s"
           }}
+          onMouseEnter={(e) => e.target.style.background = "rgba(76, 175, 80, 0.1)"}
+          onMouseLeave={(e) => e.target.style.background = "transparent"}
         >
-          Generate Unique Room ID &rarr;
+          ✨ Generate Unique Room ID
         </button>
       </div>
+
+      {/* Inline Animation Style */}
+      <style>{`
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 };

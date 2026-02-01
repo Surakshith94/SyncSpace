@@ -12,6 +12,14 @@ dist
 dist-ssr
 *.local
 
+# Ignore build output
+dist/
+build/
+
+# Ignore secrets (CRITICAL)
+.env
+.env.local
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
