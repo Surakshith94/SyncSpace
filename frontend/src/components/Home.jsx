@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { useNavigate } from "react-router-dom";
-import toast from "react-hot-toast"; // Import Toast
+import toast from "react-hot-toast";
 
 const Home = () => {
   const [roomId, setRoomId] = useState("");
@@ -29,12 +29,16 @@ const Home = () => {
   return (
     <div style={{
       height: "100vh",
+      width: "100vw", // <--- ADDED THIS: Forces full screen width
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
       background: "#1e1e1e",
       color: "white",
-      fontFamily: "'Segoe UI', sans-serif"
+      fontFamily: "'Segoe UI', sans-serif",
+      position: "fixed", // <--- OPTIONAL: Ensures it sits on top of everything
+      top: 0,
+      left: 0
     }}>
       <div style={{
         background: "#252526",
@@ -42,9 +46,9 @@ const Home = () => {
         borderRadius: "12px",
         width: "400px",
         textAlign: "center",
-        boxShadow: "0 10px 30px rgba(0,0,0,0.5)", // Deep shadow
+        boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
         border: "1px solid #333",
-        animation: "fadeIn 0.5s ease-in-out" // Simple animation
+        animation: "fadeIn 0.5s ease-in-out"
       }}>
         <div style={{ fontSize: "50px", marginBottom: "10px" }}>🚀</div>
         <h1 style={{ marginBottom: "10px", color: "#007acc", fontSize: "28px", letterSpacing: "1px" }}>SyncSpace</h1>
@@ -80,7 +84,7 @@ const Home = () => {
               padding: "12px",
               borderRadius: "6px",
               border: "none",
-              background: "linear-gradient(90deg, #007acc 0%, #005fa3 100%)", // Gradient
+              background: "linear-gradient(90deg, #007acc 0%, #005fa3 100%)",
               color: "white",
               fontWeight: "bold",
               fontSize: "16px",
@@ -102,7 +106,7 @@ const Home = () => {
           onClick={createNewRoom}
           style={{
             background: "transparent",
-            color: "#4CAF50", // Green for "New"
+            color: "#4CAF50",
             border: "1px solid #4CAF50",
             padding: "8px 15px",
             borderRadius: "5px",
@@ -118,7 +122,6 @@ const Home = () => {
         </button>
       </div>
 
-      {/* Inline Animation Style */}
       <style>{`
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(-20px); }
