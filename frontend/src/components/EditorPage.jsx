@@ -24,6 +24,9 @@ function EditorPage() {
   const [room, setRoom] = useState(roomId);
   const [language, setLanguage] = useState("python");
   const [writerId, setWriterId] = useState("");
+
+  // Add this line with your other states
+  const [socketId, setSocketId] = useState(socket.id);
   
   // UI STATE
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -169,6 +172,25 @@ function EditorPage() {
       })
       .catch((err) => console.error("Camera Error:", err));
   }, []);
+
+  // Add this useEffect to capture the ID when connection finishes
+useEffect(() => {
+    // If already connected, set it immediately
+    if (socket.connected) {
+        setSocketId(socket.id);
+    }
+
+    // Listen for the "connect" event (for slower connections)
+    const onConnect = () => {
+        setSocketId(socket.id);
+    };
+
+    socket.on("connect", onConnect);
+
+    return () => {
+        socket.off("connect", onConnect);
+    };
+}, []);
 
   useEffect(() => {
     const peer = new Peer();
@@ -338,7 +360,7 @@ function EditorPage() {
                 language={language}
                 setLanguage={setLanguage}
                 writerId={writerId}
-                socketId={socket.id}
+                socketId={socketId}
                 requestControl={requestControl}
                 runCode={runCode}
                 saveCode={saveCode}
