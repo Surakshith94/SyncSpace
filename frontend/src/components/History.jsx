@@ -1,65 +1,96 @@
 const History = ({ history, showHistory, setShowHistory, restoreVersion }) => {
   if (!showHistory) return null;
 
+  const handleRestore = (code) => {
+    // 🛡️ SAFETY CHECK: Prevent accidental code loss
+    const confirmRestore = window.confirm("⚠️ Are you sure? This will overwrite your current code with this version.");
+    if (confirmRestore) {
+      restoreVersion(code);
+    }
+  };
+
   return (
     <div style={{
       position: "fixed",
       top: 0,
       right: 0,
-      width: "300px",
+      width: "320px", // Slightly wider for readability
       height: "100%",
-      background: "#1e1e1e", // Dark background
+      background: "#1e1e1e",
       borderLeft: "1px solid #333",
       display: "flex",
       flexDirection: "column",
-      zIndex: 1100, // Higher than everything else
+      zIndex: 1100, // Highest priority
       color: "white",
-      fontFamily: "sans-serif",
-      boxShadow: "-5px 0 15px rgba(0,0,0,0.5)"
+      fontFamily: "'Segoe UI', sans-serif",
+      boxShadow: "-5px 0 20px rgba(0,0,0,0.5)"
     }}>
-      {/* Header */}
-      <div style={{ padding: "15px", borderBottom: "1px solid #333", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#252526" }}>
-        <span style={{ fontWeight: "bold", fontSize: "14px" }}>📜 Version History</span>
+      
+      {/* HEADER (Matches Chat Style) */}
+      <div style={{ 
+          background: "#007acc", 
+          padding: "15px", 
+          display: "flex", 
+          justifyContent: "space-between", 
+          alignItems: "center",
+          boxShadow: "0 2px 5px rgba(0,0,0,0.2)"
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span style={{ fontSize: "18px" }}>📜</span>
+            <span style={{ fontWeight: "bold", letterSpacing: "0.5px" }}>Version History</span>
+        </div>
         <button 
           onClick={() => setShowHistory(false)} 
-          style={{ background: "transparent", border: "none", color: "#ccc", cursor: "pointer", fontSize: "16px" }}
+          style={{ 
+            background: "rgba(255,255,255,0.2)", width: "25px", height: "25px", 
+            borderRadius: "50%", color: "white", border: "none", cursor: "pointer", 
+            display: "flex", alignItems: "center", justifyContent: "center"
+          }}
         >
           ✕
         </button>
       </div>
 
-      {/* List */}
-      <div style={{ overflowY: "auto", flex: 1, padding: "10px" }}>
+      {/* LIST AREA */}
+      <div style={{ overflowY: "auto", flex: 1, padding: "15px", background: "#252526" }}>
         {history.length === 0 ? (
-          <p style={{ color: "#888", textAlign: "center", fontSize: "12px", marginTop: "20px" }}>No commits yet.</p>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: "50px", opacity: 0.5 }}>
+            <span style={{ fontSize: "40px", marginBottom: "10px" }}>🕰️</span>
+            <p style={{ fontSize: "14px" }}>No saved versions yet.</p>
+            <p style={{ fontSize: "12px" }}>Click "Save" to create a checkpoint.</p>
+          </div>
         ) : (
           history.map((commit, index) => (
             <div 
               key={index} 
-              onClick={() => restoreVersion(commit.code)}
-              style={{
-                background: "#2d2d2d",
-                marginBottom: "10px",
-                padding: "10px",
-                borderRadius: "5px",
-                cursor: "pointer",
-                border: "1px solid #3c3c3c",
-                transition: "0.2s"
+              onClick={() => handleRestore(commit.code)}
+              style={itemStyle}
+              onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "#37373d";
+                  e.currentTarget.style.transform = "translateX(-2px)";
               }}
-              onMouseOver={(e) => e.currentTarget.style.background = "#37373d"}
-              onMouseOut={(e) => e.currentTarget.style.background = "#2d2d2d"}
+              onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "#2d2d2d";
+                  e.currentTarget.style.transform = "translateX(0)";
+              }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
-                <strong style={{ color: "#4CAF50", fontSize: "12px" }}>Saved Version</strong>
-                <span style={{ fontSize: "10px", color: "#888" }}>
-                  {new Date(commit.timestamp).toLocaleTimeString()}
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", borderBottom: "1px solid #3c3c3c", paddingBottom: "5px" }}>
+                <strong style={{ color: "#4CAF50", fontSize: "13px" }}>v{history.length - index}</strong>
+                <span style={{ fontSize: "11px", color: "#aaa" }}>
+                  {new Date(commit.timestamp).toLocaleString()} {/* Date & Time */}
                 </span>
               </div>
-              <div style={{ fontSize: "11px", color: "#ccc", fontFamily: "monospace", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {commit.code.substring(0, 40)}...
+              
+              <div style={{ 
+                  fontSize: "12px", color: "#ccc", fontFamily: "monospace", 
+                  background: "#1e1e1e", padding: "5px", borderRadius: "4px",
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" 
+              }}>
+                {commit.code.substring(0, 50)}...
               </div>
-              <div style={{ marginTop: "5px", fontSize: "10px", color: "#007acc", textAlign: "right" }}>
-                Click to Restore
+
+              <div style={{ marginTop: "8px", fontSize: "11px", color: "#007acc", textAlign: "right", fontWeight: "bold" }}>
+                ↺ Click to Restore
               </div>
             </div>
           ))
@@ -67,6 +98,18 @@ const History = ({ history, showHistory, setShowHistory, restoreVersion }) => {
       </div>
     </div>
   );
+};
+
+// --- STYLES ---
+const itemStyle = {
+    background: "#2d2d2d",
+    marginBottom: "15px",
+    padding: "12px",
+    borderRadius: "8px",
+    cursor: "pointer",
+    border: "1px solid #3c3c3c",
+    transition: "all 0.2s ease",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
 };
 
 export default History;

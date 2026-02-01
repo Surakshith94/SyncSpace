@@ -1,0 +1,11 @@
+# Ignore dependencies
+node_modules/
+
+# Ignore secrets (CRITICAL)
+.env
+
+# Ignore system files
+.DS_Store
+logs
+*.log
+npm-debug.log*

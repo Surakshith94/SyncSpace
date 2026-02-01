@@ -11,14 +11,29 @@ const dotenv =  require('dotenv');
 
 dotenv.config();
 
-const genAI = new GoogleGenerativeAI(process.env.API_KEY)
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" })
+const PORT = process.env.PORT || 5000;
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/simulcode_db';
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 
 const app = express();
 app.use(cors()); // Enable CORS for all routes
 app.use(express.json()); // allow JSON data
 
-mongoose.connect('mongodb://127.0.0.1:27017/simulcode_db').then(() => console.log("MongoDB Connected")).catch(err => console.error("MongoDB Error",err));
+// 3. Setup CORS (Allow Frontend to talk to Backend)
+app.use(cors({
+    origin: ["http://localhost:5173", FRONTEND_URL], // Allow local + deployed URL
+    methods: ["GET", "POST"]
+}));
+
+mongoose.connect(MONGODB_URI).then(() => console.log("MongoDB Connected")).catch(err => console.error("MongoDB Error",err));
+
+let model;
+if(process.env.API_KEY){
+  const genAI = new GoogleGenerativeAI(process.env.API_KEY)
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
+}else {
+    console.warn("⚠️  Warning: API_KEY is missing. AI features will not work.");
+}
 
 // Delete the "commit" blueprint
 const CommitSchema = new mongoose.Schema({
@@ -35,7 +50,7 @@ const server = http.createServer(app); // we wrap express inside raw HTTP server
 
 const io = new Server (server, {
   cors: {
-    origin: "http://localhost:5173", // Allow requests from this origin
+    origin: ["http://localhost:5173",FRONTEND_URL], // Allow requests from this origin
     methods: ["GET", "POST"]
   }
 }); //We are explicitly telling the server, "Trust the Frontend that lives on port 5173."
@@ -79,6 +94,7 @@ app.get('/history/:room', async (req, res) => {
 
 const roomUsers = {};
 const roomWriters = {}; // track who is writing in each room
+const roomCode = {}; // Server memory for code
 
 io.on('connection',(socket) => {
   console.log(`User connected: ${socket.id}`);
@@ -90,6 +106,11 @@ io.on('connection',(socket) => {
 
     if(!roomUsers[room]) roomUsers[room] = [];
     roomUsers[room].push({ socketId: socket.id, peerId: userId});
+
+    // 1. SYNC CODE: If there is code in memory, send it to the new joiner
+        if (roomCode[room]) {
+            socket.emit("receive_message", { message: roomCode[room] });
+        }
     
     // If no writer exists (first user), make THIS user the writer
     if (!roomWriters[room]) {
@@ -110,6 +131,8 @@ io.on('connection',(socket) => {
 
   // 2.user sends a message to a specific room
   socket.on("send_message", (data) => {
+    //update server memort whenever someone types
+    roomCode[data.room] = data.message;
     // to(data.room) means only send to people in that room
     socket.to(data.room).emit("receive_message", data);
   });
@@ -220,17 +243,20 @@ io.on('connection',(socket) => {
             const user = roomUsers[room][index];
             roomUsers[room].splice(index, 1);
             io.to(room).emit("user_disconnected", user.peerId);
-            // Optional: If the writer left, clear the memory
-            if(roomWriters[room] === socket.id) {
-                delete roomWriters[room];
-            }
+            // If the room is empty, clear the memory to save RAM
+                if (roomUsers[room].length === 0) {
+                    delete roomCode[room];
+                    delete roomWriters[room];
+                } else if (roomWriters[room] === socket.id) {
+                    delete roomWriters[room];
+                }
             break;
         }
     }
   });
 
 });
-server.listen(5000, () => {
+server.listen(PORT, () => {
   console.log("SERVER RUNNING");      
 }
 );
