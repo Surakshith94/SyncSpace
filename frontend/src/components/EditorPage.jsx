@@ -25,6 +25,8 @@ function EditorPage() {
   const [language, setLanguage] = useState("python");
   const [writerId, setWriterId] = useState("");
 
+  const [history, setHistory] = useState([]);
+
   // Add this line with your other states
   const [socketId, setSocketId] = useState(socket.id);
 
