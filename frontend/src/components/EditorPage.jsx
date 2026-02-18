@@ -104,6 +104,7 @@ function EditorPage() {
   };
 
   const handleEditorChange = (value) => {
+    if(socketId !== writerId) return;
     setCode(value);
     socket.emit("send_message", { message: value, room });
   };
@@ -165,7 +166,17 @@ function EditorPage() {
   }, [room, myPeerId]);
 
   useEffect(() => {
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+    navigator.mediaDevices.getUserMedia({ 
+    video: { 
+        width: { ideal: 640 }, // Lower resolution (480p/360p is faster)
+        height: { ideal: 480 },
+        frameRate: { ideal: 15, max: 20 } // Lower FPS = Less lag
+    }, 
+    audio: {
+        echoCancellation: true, // Helps with audio feedback
+        noiseSuppression: true
+    } 
+})
       .then((stream) => {
         setCurrentStream(stream);
         streamRef.current = stream;
@@ -228,7 +239,10 @@ useEffect(() => {
   // FIX: Socket Listeners with proper cleanup to prevent double notifications
   useEffect(() => {
     // Define listeners
-    const handleReceiveMessage = (data) => setCode(data.message);
+    const handleReceiveMessage = (data) => {
+      if(socketId == writerId) return;
+      setCode(data.message);
+    }
     const handleCodeSaved = (data) => console.log("Saved", data.timestamp);
     const handleUpdateWriter = (writerId) => setWriterId(writerId);
     const handleReceiveOutput = (data) => setOutput(data);
