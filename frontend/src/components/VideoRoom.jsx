@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-const VideoRoom = ({ stream, peers, toggleCamera, toggleMic, isMicOn, isCameraOn }) => {
+const VideoRoom = ({ stream, peers, toggleCamera, toggleMic, isMicOn, isCameraOn, userCount }) => {
   const localVideoRef = useRef();
 
   // FIX: Force video to play when stream is ready
@@ -24,7 +24,7 @@ const VideoRoom = ({ stream, peers, toggleCamera, toggleMic, isMicOn, isCameraOn
         color: "#ccc", margin: "0 0 5px 0", fontSize: "12px", 
         textTransform: "uppercase", letterSpacing: "1px", borderBottom: "1px solid #333", paddingBottom: "5px"
       }}>
-        🎥 Team ({peers.length + 1})
+        🎥 Team ({userCount})
       </h3>
 
       {/* CONTROLS */}
