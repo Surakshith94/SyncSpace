@@ -50,7 +50,7 @@ const server = http.createServer(app); // we wrap express inside raw HTTP server
 
 const io = new Server (server, {
   cors: {
-    origin: "*3", // Allow requests from this origin
+    origin: "*", // Allow requests from this origin
     methods: ["GET", "POST"]
   }
 }); //We are explicitly telling the server, "Trust the Frontend that lives on port 5173."
