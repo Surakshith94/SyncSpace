@@ -31,7 +31,7 @@ function EditorPage() {
   const [socketId, setSocketId] = useState(socket.id);
 
   //track real user
-  const [connectedUsers, setConnectedUsers] = useState();
+  const [connectedUsers, setConnectedUsers] = useState([]);
   
   // UI STATE
   const [sidebarOpen, setSidebarOpen] = useState(true);
