@@ -27,6 +27,9 @@ function EditorPage() {
 
   // Add this line with your other states
   const [socketId, setSocketId] = useState(socket.id);
+
+  //track real user
+  const [connectedUsers, setConnectedUsers] = useState();
   
   // UI STATE
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -253,6 +256,7 @@ useEffect(() => {
     };
     const handleUserJoined = (userId) => {
       toast.success("A partner joined the room! 🚀");
+      setConnectedUsers((prev) => [...prev, userId]); // update count;
       const stream = streamRef.current;
       if (peerInstance && stream) {
         const call = peerInstance.call(userId, stream);
@@ -262,6 +266,7 @@ useEffect(() => {
 
     // 2. NEW: Handle Existing Users (I just joined, I call THEM)
     const handleAllUsers = (users) => {
+        setConnectedUsers(users); //set Initial count
         const stream = streamRef.current;
         if (!stream || !peerInstance) return;
         
