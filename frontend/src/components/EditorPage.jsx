@@ -207,7 +207,14 @@ useEffect(() => {
 }, []);
 
   useEffect(() => {
-    const peer = new Peer();
+    const peer = new Peer(undefined, {
+      config: {
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:global.stun.twilio.com:3478" }
+        ]
+      }
+    });
     peer.on('error', (err) => {
         console.error("PeerJS Error:", err);
         toast.error("Video Connection Failed: " + err.type);
@@ -357,6 +364,7 @@ useEffect(() => {
                     toggleMic={toggleMic} 
                     isMicOn={isMicOn}
                     isCameraOn={isCameraOn}
+                    userCount={connectedUsers.length + 1}
                 />
             </div>
         </div>
