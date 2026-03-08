@@ -134,9 +134,10 @@ FRONTEND_URL=[https://sync-space.vercel.app](https://sync-space.vercel.app)
 
 *(Note: Ensure your MongoDB password contains no special characters like `@` or `:` unless URL-encoded).*
 
-**Frontend (rontend/.env)**
-`env
+**Frontend (Frontend/.env)**
+```env
 VITE_BACKEND_URL=[https://syncspace-p0ud.onrender.com](https://syncspace-p0ud.onrender.com)
+```
 ?? Important Links
 Live Application: https://sync-space.vercel.app
 
@@ -144,7 +145,7 @@ Backend API URL: https://syncspace-p0ud.onrender.com
 
 GitHub Repository: https://github.com/Surakshith94/SyncSpace
 
-👨‍💻 Author
+## 👨‍💻 Author
 Surakshith
 
 GitHub: @Surakshith94
