@@ -130,6 +130,7 @@ PORT=5000
 MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.ne1uey5.mongodb.net/?appName=Cluster0
 API_KEY=your_gemini_api_key
 FRONTEND_URL=[https://sync-space.vercel.app](https://sync-space.vercel.app)
+```
 
 *(Note: Ensure your MongoDB password contains no special characters like `@` or `:` unless URL-encoded).*
 
