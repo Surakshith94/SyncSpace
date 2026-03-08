@@ -3,6 +3,7 @@ node_modules/
 
 # Ignore secrets (CRITICAL)
 .env
+#
 
 # Ignore system files
 .DS_Store
