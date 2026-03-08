@@ -40,7 +40,7 @@ const CommitSchema = new mongoose.Schema({
   room:String,
   code: String,
   timestamp: { type: Date, default: Date.now},
-  author: String //who saved it?
+  author: String //who saved it ?
 });
 
 const Commit = mongoose.model('Commit',CommitSchema);
