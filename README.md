@@ -146,7 +146,7 @@ Backend API URL: https://syncspace-p0ud.onrender.com
 
 GitHub Repository: https://github.com/Surakshith94/SyncSpace
 
-👨‍💻 Author
+## 👨‍💻 Author
 Surakshith
 
 GitHub: @Surakshith94
